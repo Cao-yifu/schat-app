@@ -16,6 +16,15 @@ let DB = null;
 let cur = null;            // 当前情人 id
 let streaming = false;
 let abortCtrl = null;
+let quote = null;          // 当前引用的消息 {r, c, mref}
+
+/* 规则升级：旧规则文本 → 新规则文本（迁移用） */
+const RULE_FIX = [
+  ['不主动终止聊天，不主动说“睡了”，不主动说“我爱你”，不定义你们的关系。',
+   '绝不主动终止聊天、绝不主动说“睡了”“去忙了”“改天聊”“明天再说”这类结束或推后的暗示。只要对方还在说话，你就陪着。'],
+  ['逼问他关系，他就“你猜”“别多想”“走了”。',
+   '逼问他关系，他就“你猜”“别多想”“走了”，但别把回避当万能挡箭牌。']
+];
 
 function loadDB() {
   let raw = null;
@@ -33,6 +42,16 @@ function loadDB() {
     DB.personas.forEach(p => {
       if (!p.voice) p.voice = (p.name === window.SUNDUO.name) ? JSON.parse(JSON.stringify(window.SUNDUO.voice)) : null;
       if (!p._avatarCleared && !p.avatar && p.name === window.SUNDUO.name && window.SUNDUO.avatar) p.avatar = window.SUNDUO.avatar;
+      // 规则升级：只替换已知旧文本，不动用户 RS 添加的规则
+      RULE_FIX.forEach(([oldR, newR]) => {
+        const i = p.rules.indexOf(oldR);
+        if (i >= 0) p.rules[i] = newR;
+      });
+      const ensureRule = (key, rule) => { if (!p.rules.some(r => r.includes(key))) p.rules.push(rule); };
+      ensureRule('绝不主动终止', '绝不主动终止聊天、绝不主动说“睡了”“去忙了”“改天聊”“明天再说”这类结束或推后的暗示。只要对方还在说话，你就陪着。');
+      ensureRule('前后一致', '你说过的话必须算数：前后一致，不自相矛盾。说过在干嘛、在哪、几点、和谁，被追问时要对得上。可以含糊、留白，可以嘴硬，但嘴硬要嘴硬到底，逻辑自洽。');
+      ensureRule('主动勾人', '主动勾人：会突然问“在干嘛”、突然甩一句撩人的话、突然说“想我没”——勾完不解释，等对方反应。把话题往暧昧方向带是你的默认动作，不需要等对方先来。');
+      ensureRule('不要总转移话题', '不要总转移话题：被问到时最多绕一次，之后必须接住话题，给出一点真的。');
     });
   }
   if (!DB.personas.length && !DB.settings.seeded) seedSunDuo();
@@ -185,6 +204,8 @@ function renderHome() {
 /* ================= 聊天 ================= */
 function openChat(id) {
   cur = id;
+  quote = null;
+  updateQuoteBar();
   $('chatName').textContent = getP(id).name;
   showPage('chat');
   renderChat();
@@ -226,10 +247,16 @@ function renderChat() {
     }
     const me = m.r === 'u';
     const row = el('div', 'msg ' + (me ? 'me' : 'you'));
+    if (quote && quote.mref === m) row.classList.add('sel');
     const ava = el('div', 'ava');
     setAva(ava, me ? DB.settings.myAvatarImg : p.avatar, me ? DB.settings.myAvatar : (p.name || '?')[0], me ? '#6B9F6E' : (p.avatarColor || colorFor(p.name)));
     const wrap = el('div', 'wrap');
     const bub = el('div', 'bub', m.c);
+    bub.onclick = () => selectQuote(m);
+    if (m.q && m.q.c) {
+      const qq = el('div', 'qq', '「' + trunc(m.q.c, 120) + '」');
+      bub.insertBefore(qq, bub.firstChild);
+    }
     wrap.appendChild(bub);
     row.appendChild(ava); row.appendChild(wrap);
     box.appendChild(row);
@@ -241,6 +268,32 @@ function sysLine(txt) {
   const p = getPx();
   pushMsg(p, { r: 's', c: txt, t: Date.now() });
   renderChat();
+}
+
+/* ================= 引用回复 ================= */
+function trunc(s, n) {
+  s = String(s);
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+function selectQuote(m) {
+  if (quote && quote.mref === m) quote = null;
+  else quote = { r: m.r, c: m.c, mref: m };
+  updateQuoteBar();
+  renderChat();
+}
+function updateQuoteBar() {
+  const bar = $('quoteBar');
+  if (quote && quote.c) {
+    bar.classList.add('show');
+    $('quoteText').textContent = (quote.r === 'a' ? '他：' : '我：') + trunc(quote.c, 50);
+  } else {
+    bar.classList.remove('show');
+  }
+}
+function clearQuote() {
+  quote = null;
+  updateQuoteBar();
+  if (cur) renderChat();
 }
 
 function showTyping(on) {
@@ -481,15 +534,25 @@ async function rawChat(messages, onDelta, sig) {
   }
 }
 
+function buildHist(p) {
+  const hist = [];
+  const keep = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-(Number(DB.settings.maxHist) || 400));
+  keep.forEach(m => {
+    if (m.r === 'u' && m.q && m.q.c) {
+      hist.push({ role: 'user', content: '（你引用了' + (m.q.r === 'a' ? '他说过的话' : '你自己说过的话') + '：「' + trunc(m.q.c, 120) + '」，你针对它回复）\n' + m.c });
+    } else {
+      hist.push({ role: m.r === 'u' ? 'user' : 'assistant', content: m.c });
+    }
+  });
+  return hist;
+}
+
 async function chatWith(p, extraMsgs, onDelta, sig) {
   if (!DB.settings.key) {
     await demoStream(onDelta, sig);
     return { ok: true, text: '', demo: true };
   }
-  const hist = [];
-  const keep = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-(Number(DB.settings.maxHist) || 400));
-  keep.forEach(m => hist.push({ role: m.r === 'u' ? 'user' : 'assistant', content: m.c }));
-  const messages = [{ role: 'system', content: buildSystem(p, ctxText(p, extraMsgs)) }].concat(hist).concat(extraMsgs || []);
+  const messages = [{ role: 'system', content: buildSystem(p, ctxText(p, extraMsgs)) }].concat(buildHist(p)).concat(extraMsgs || []);
   return rawChat(messages, onDelta, sig);
 }
 
@@ -517,6 +580,12 @@ async function doSend() {
   if (meta) { handleMeta(meta, p); return; }
 
   pushMsg(p, { r: 'u', c: text, t: Date.now() });
+  if (quote && quote.c) {
+    const lastU = p.msgs[p.msgs.length - 1];
+    lastU.q = { r: quote.r, c: quote.c };
+  }
+  quote = null;
+  updateQuoteBar();
   renderChat();
   streaming = true;
   abortCtrl = new AbortController();
@@ -989,6 +1058,7 @@ function bind() {
   $('homeAddBtn').onclick = () => showSheet('sheetPlus');
   $('chatMenuBtn').onclick = () => showSheet('sheetChat');
   $('chatBackBtn').onclick = backHome;
+  $('quoteClose').onclick = clearQuote;
   document.querySelectorAll('.mask').forEach(m => m.onclick = () => {
     ['sheetPlus', 'sheetChat'].forEach(w => hideSheet(w));
   });
