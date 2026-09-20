@@ -306,8 +306,8 @@ function setAva(node, img, initial, color) {
     node.textContent = initial || '';
   }
 }
-/* 从手机相册选图 → 压缩到 192px 的 dataURL */
-function pickImage(cb) {
+/* 从手机相册选图 → 压缩到 max px 的 dataURL */
+function pickImage(cb, max) {
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.accept = 'image/*';
@@ -317,8 +317,8 @@ function pickImage(cb) {
     const img = new Image();
     const url = URL.createObjectURL(f);
     img.onload = () => {
-      const max = 192;
-      const sc = Math.min(1, max / Math.max(img.width, img.height));
+      const maxPx = max || 192;
+      const sc = Math.min(1, maxPx / Math.max(img.width, img.height));
       const cv = document.createElement('canvas');
       cv.width = Math.max(1, Math.round(img.width * sc));
       cv.height = Math.max(1, Math.round(img.height * sc));
@@ -416,7 +416,9 @@ function renderRoles() {
     list.appendChild(row);
   });
 }
-function openRoleDetail(id) {
+let roleFrom = 'roles';     // 从哪个标签进入角色详情，返回时回哪
+function openRoleDetail(id, from) {
+  roleFrom = from || 'roles';
   const p = getP(id);
   if (!p) return;
   $('roleName').textContent = p.name;
@@ -1357,21 +1359,51 @@ function renderMoments() {
   const box = $('momentsList');
   box.innerHTML = '';
   if (!DB.moments || !DB.moments.length) {
-    box.innerHTML = '<div class="empty"><div class="big">🫧</div>TA们还没有发过动态</div>';
+    box.innerHTML = '<div class="empty"><div class="big">🫧</div>TA们还没有发过动态<br><br><button class="addbtn" onclick="showCompose()">＋ 发第一条</button></div>';
     return;
   }
   DB.moments.slice().sort((a, b) => b.t - a.t).forEach(m => {
-    const p = DB.personas.find(x => x.id === m.pid);
+    const isMe = m.pid === 'me';
+    const p = isMe ? null : DB.personas.find(x => x.id === m.pid);
     const post = el('div', 'mpost');
     const hd = el('div', 'mhd');
     const ava = el('div', 'mava');
-    setAva(ava, p ? p.avatar : null, p ? (p.name || '?')[0] : '?', p ? (p.avatarColor || colorFor(p.name)) : '#888');
-    const nm = el('div', 'mnm', p ? p.name : 'TA');
+    setAva(ava,
+      isMe ? DB.settings.myAvatarImg : (p ? p.avatar : null),
+      isMe ? DB.settings.myAvatar : (p ? (p.name || '?')[0] : '?'),
+      isMe ? '#6B9F6E' : (p ? (p.avatarColor || colorFor(p.name)) : '#888'));
+    const nm = el('div', 'mnm', isMe ? '我' : (p ? p.name : 'TA'));
+    if (!isMe && p) { nm.style.cursor = 'pointer'; nm.onclick = () => openRoleDetail(p.id, 'moments'); }
     const tme = el('div', 'mtime', fmtAgo(m.t));
     tme.style.marginLeft = 'auto';
     hd.appendChild(ava); hd.appendChild(nm); hd.appendChild(tme);
     post.appendChild(hd);
-    post.appendChild(el('div', 'mtxt', m.text));
+    if (m.text) post.appendChild(el('div', 'mtxt', m.text));
+    if (m.img) {
+      const imwrap = el('div', 'mimg');
+      if (m.img.src) {
+        const img = document.createElement('img');
+        img.src = m.img.src;
+        img.alt = m.img.d || '照片';
+        imwrap.appendChild(img);
+      } else {
+        const ph = el('div', 'imgload', '📷 ' + trunc(m.img.d || '照片', 18) + '…');
+        imwrap.appendChild(ph);
+        cacheImg(m.img).then(src => {
+          if (src) {
+            m.img.src = src;
+            save();
+            const img = document.createElement('img');
+            img.src = src;
+            img.alt = m.img.d || '照片';
+            ph.replaceWith(img);
+          } else {
+            ph.textContent = '（图：' + (m.img.d || '照片') + '）';
+          }
+        });
+      }
+      post.appendChild(imwrap);
+    }
     const mbar = el('div', 'mbar');
     const lk = el('div', 'act' + (m.liked ? ' liked' : ''));
     lk.appendChild(el('span', '', m.liked ? '♥' : '♡'));
@@ -1415,6 +1447,7 @@ function renderMoments() {
       m.comments.push({ who: '我', text: t });
       save();
       renderMoments();
+      if (!isMe && p) maybeReplyToComment(m, t);
     };
     sbtn.onclick = send;
     ipt.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
@@ -1428,33 +1461,181 @@ function toggleLike(m) {
   save();
   renderMoments();
 }
-/* 动态池没发完的，过一段时间自动补一条（约 4 小时一条） */
-function autoMoment() {
-  if (!window.MOMENTS || !DB.moments) return;
-  const used = DB.settings.momentsUsed || {};
-  const lastT = DB.moments.length ? Math.max.apply(null, DB.moments.map(x => x.t)) : 0;
-  if (Date.now() - lastT < 4 * 3600000) return;
-  const cands = [];
-  window.MOMENTS.forEach(L => {
-    const p = DB.personas.find(x => x.name === L.name);
-    if (!p || !L.posts) return;
-    const u = used[L.name] || 0;
-    if (u < L.posts.length) cands.push({ p: p, po: L.posts[u], name: L.name });
-  });
-  if (!cands.length) return;
-  const c = cands[Math.floor(Math.random() * cands.length)];
-  used[c.name] = (used[c.name] || 0) + 1;
-  DB.moments.push({
-    id: 'm' + Date.now() + Math.floor(Math.random() * 1e6),
-    pid: c.p.id,
-    text: c.po.text,
-    t: Date.now() - (10 + Math.floor(Math.random() * 120)) * 60000,
-    likes: (c.po.likes || []).slice(),
-    comments: (c.po.comments || []).map(x => ({ who: x.who, text: x.text })),
-    liked: false
-  });
-  DB.settings.momentsUsed = used;
+/* 你评论后，动态作者（个别角色）过一会儿回复你的评论 */
+function maybeReplyToComment(m, userText) {
+  const p = DB.personas.find(x => x.id === m.pid);
+  if (!p || !DB.settings.key) return;
+  if (Math.random() > 0.65) return;   // 个别人回，不是人人都回
+  setTimeout(async () => {
+    let out = '';
+    const res = await rawChat([
+      { role: 'system', content: buildMomentSystem(p) },
+      { role: 'user', content: '你的朋友圈动态《' + trunc(m.text, 60) + '》下面，TA评论了一句：「' + userText + '」。以你的口吻简短回复这条评论，就一句，自然，不要复述评论内容。' }
+    ], d => { out += d; }, null);
+    const t = trimReply(cleanProactive(out));
+    if (t) {
+      m.comments = m.comments || [];
+      m.comments.push({ who: p.name, text: t });
+      save();
+      if ($('page-moments').classList.contains('active')) renderMoments();
+    }
+  }, 8000 + Math.random() * 12000);
+}
+/* 发朋友圈时用的角色提示词（轻量版） */
+function buildMomentSystem(p) {
+  const eff = nowEff(p);
+  const L = [];
+  L.push('你是' + p.name + '，真实存在的活人，不是AI。现在是' + nowStr(eff) + '，你此刻正在：' + schedAct(p, eff) + '。');
+  L.push('你在发微信朋友圈。写一条动态：1-2句短句、口语，符合你的性格和说话方式，内容是你此刻生活里的真实日常或心情。');
+  L.push('可以偶尔用【图：内容描述】配一张生活照（第一人称、画面无人物）。绝不写解释、标签、表情符号列表、动作描写。只输出动态正文。');
+  const c = p.card || {};
+  const cd = [];
+  Object.keys(c).forEach(k => { if (c[k]) cd.push((KEY_LABELS[k] || k) + '：' + c[k]); });
+  if (cd.length) L.push('【你的基本信息】' + cd.join('；'));
+  const v = p.voice;
+  if (v) {
+    L.push('【你的说话方式】' + (v.rhythm || ''));
+    if (v.dict && v.dict.length) L.push('语气参考：' + pickDict(v.dict, 8).join('；'));
+  }
+  return L.join('\n');
+}
+/* 默契圈层：其他人看到这条动态，点赞 + 偶尔留一句评论 */
+function reactToMoment(m) {
+  const others = DB.personas.filter(x => x.id !== m.pid);
+  if (!others.length) return;
+  const sh = others.slice().sort(() => Math.random() - 0.5);
+  const nLikes = 1 + Math.floor(Math.random() * Math.min(3, others.length));
+  const likers = sh.slice(0, nLikes).map(x => x.name);
+  m.likes = (m.likes || []).concat(likers.filter(n => !(m.likes || []).includes(n)));
+  if (Math.random() < 0.6 && sh.length) {
+    const who = sh[0];
+    const pool = (window.MOMENT_REACTIONS && window.MOMENT_REACTIONS[who.name]) || [];
+    if (pool.length) {
+      m.comments = m.comments || [];
+      m.comments.push({ who: who.name, text: pool[Math.floor(Math.random() * pool.length)] });
+    }
+  }
   save();
+}
+/* 生成一条角色动态：有 Key 走 AI（按人设），没 Key 用预设池兜底 */
+async function genMoment(p) {
+  let text = '';
+  let imgDesc = null;
+  if (DB.settings.key) {
+    try {
+      let out = '';
+      const res = await rawChat([
+        { role: 'system', content: buildMomentSystem(p) },
+        { role: 'user', content: '（现在发一条你的朋友圈动态，只输出动态正文）' }
+      ], d => { out += d; }, null);
+      if (res.ok && out.trim()) {
+        const parsed = extractPhotos(trimReply(out.trim()));
+        text = parsed.text;
+        if (parsed.imgs.length) imgDesc = parsed.imgs[0].d;
+      }
+    } catch (e) { text = ''; }
+  }
+  if (!text) {
+    const L = window.MOMENTS && window.MOMENTS.find(x => x.name === p.name);
+    const pool = L ? (L.posts || []) : [];
+    const used = DB.settings.momentsUsed || {};
+    const u = used[p.name] || 0;
+    if (u >= pool.length) return;   // 池子用尽且无 AI 可用
+    text = pool[u].text;
+    used[p.name] = u + 1;
+    DB.settings.momentsUsed = used;
+  }
+  if (!text) return;
+  const m = { id: 'm' + Date.now() + Math.floor(Math.random() * 1e6), pid: p.id, text: text, t: Date.now(), likes: [], comments: [], liked: false };
+  if (imgDesc) m.img = { d: imgDesc };
+  DB.moments.push(m);
+  save();
+  reactToMoment(m);
+  if (imgDesc) {
+    cacheImg(m.img).then(src => { if (src) { m.img.src = src; save(); } });
+  }
+}
+/* 定时更新：活泼的一天一条，其余两天一条；一次最多补发2位，10分钟冷却 */
+async function autoMoment() {
+  if (!DB.moments) return;
+  const now = Date.now();
+  if (now - (DB.settings.momentsGenAt || 0) < 10 * 60000) return;
+  const due = DB.personas.filter(p => {
+    const freq = (window.MOMENTS_META && window.MOMENTS_META[p.name] && window.MOMENTS_META[p.name].freq) || 48;
+    let last = 0;
+    DB.moments.forEach(m => { if (m.pid === p.id && m.t > last) last = m.t; });
+    return now - last >= freq * 3600000;
+  });
+  if (!due.length) return;
+  DB.settings.momentsGenAt = now;
+  save();
+  for (const p of due.slice(0, 2)) {
+    await genMoment(p);
+  }
+  if (document.getElementById('page-moments').classList.contains('active')) renderMoments();
+}
+/* 发布我的朋友圈 */
+function postMyMoment(text, imgData) {
+  const m = {
+    id: 'm' + Date.now() + Math.floor(Math.random() * 1e6),
+    pid: 'me',
+    text: text || '分享了一张照片',
+    t: Date.now(),
+    likes: [],
+    comments: [],
+    liked: false,
+    mine: true
+  };
+  if (imgData) m.img = { src: imgData, d: '照片' };
+  DB.moments.push(m);
+  save();
+  // 他们看到你的动态，过一会儿点赞评论
+  setTimeout(() => {
+    reactToMoment(m);
+    if (document.getElementById('page-moments').classList.contains('active')) renderMoments();
+  }, 15000 + Math.random() * 20000);
+}
+/* 发朋友圈面板 */
+function showCompose() {
+  const box = $('panelComposeBody');
+  box.innerHTML = '';
+  const d = el('details', 'sec');
+  d.open = true;
+  d.appendChild(el('summary', '', '发一条朋友圈'));
+  const cb = el('div', 'cb');
+  const ta = el('textarea');
+  ta.placeholder = '这一刻的想法…';
+  ta.style.minHeight = '100px';
+  const imgPrev = el('div', 'card');
+  imgPrev.style.display = 'none';
+  let imgData = null;
+  const bImg = el('button', 'mini-btn', '📷 添加照片');
+  bImg.onclick = () => pickImage(dataUrl => {
+    if (dataUrl) {
+      imgData = dataUrl;
+      imgPrev.style.display = 'block';
+      imgPrev.innerHTML = '';
+      const im = document.createElement('img');
+      im.src = dataUrl;
+      im.style.width = '100%';
+      im.style.borderRadius = '6px';
+      imgPrev.appendChild(im);
+    }
+  }, 768);
+  const bPub = el('button', 'gbtn', '发布');
+  bPub.onclick = () => {
+    const text = ta.value.trim();
+    if (!text && !imgData) { toast('写点什么再发'); return; }
+    postMyMoment(text, imgData);
+    closePanel('panelCompose');
+    showPage('moments');
+    renderMoments();
+    toast('已发布');
+  };
+  cb.appendChild(ta); cb.appendChild(bImg); cb.appendChild(imgPrev); cb.appendChild(bPub);
+  d.appendChild(cb);
+  box.appendChild(d);
+  showPanel('panelCompose');
 }
 
 /* ================= 面板：人设 ================= */
@@ -1889,7 +2070,8 @@ function bind() {
       if (name === 'set') fillSettings($('pageSetBody'));
     };
   });
-  $('roleBackBtn').onclick = () => { showPage('roles'); renderRoles(); };
+  $('roleBackBtn').onclick = () => { showPage(roleFrom || 'roles'); if ((roleFrom || 'roles') === 'roles') renderRoles(); };
+  $('momentsCamBtn').onclick = showCompose;
   $('homeAddBtn').onclick = () => showSheet('sheetPlus');
   $('chatMenuBtn').onclick = () => showSheet('sheetChat');
   $('chatBackBtn').onclick = backHome;
