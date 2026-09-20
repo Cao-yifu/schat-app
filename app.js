@@ -911,30 +911,37 @@ function buildSystem(p, ctx) {
   }
   const v = p.voice;
   if (v) {
-    L.push('【你的说话方式（声音指纹，必须符合）】');
-    if (v.dict && v.dict.length) L.push('口头禅与句式：' + v.dict.slice(0, 12).join('；'));
-    if (v.never && v.never.length) L.push('你绝不会说的话：' + v.never.join('；'));
+    L.push('【你的说话方式（语感参考，不是台词清单：自然融入，绝不机械照搬、绝不在不合时宜时突然甩句）】');
+    if (v.dict && v.dict.length) L.push('语气参考：' + v.dict.slice(0, 8).join('；'));
+    if (v.never && v.never.length) L.push('你的风格底线：' + v.never.join('；'));
     if (v.rhythm) L.push('节奏：' + v.rhythm);
     if (v.thinking) L.push('思维习惯：' + v.thinking);
     if (v.values && v.values.length) L.push('你的价值观：' + v.values.join('；'));
-    if (v.intim) L.push('亲密时的你：' + v.intim);
+    if (v.intim) L.push('（以下只描述你们亲密时的状态，日常聊天绝不提前搬用）亲密时的你：' + v.intim);
     L.push('');
   }
-  if (p.deepBg) {
-    if (p.bio && p.bio.length) {
-      L.push('【你的生平（你记得这些事，聊天时自然流露，不要整段复述）】');
-      p.bio.forEach(s => L.push('◆' + s.t + '：' + s.c));
+  // 过去与记忆：有选择地注入——贴题的最多6条记忆 + 最近3条共同经历。
+  // 角色要有过去，但历史是底色不是台词，绝不倾倒数据。
+  if (p.memories && p.memories.length) {
+    const picked = pickMemories(p, ctx).slice(0, 6);
+    if (picked.length) {
+      L.push('【你记得的往事（只在聊到相关话题时自然带出，不要整段复述、不要主动背诵）】');
+      picked.forEach(m => L.push('· ' + m));
       L.push('');
     }
-    if (p.memories && p.memories.length) {
-      const list = (p.memories.length > 40) ? pickMemories(p, ctx) : p.memories.map(x => x.replace(/^★/, ''));
-      L.push('【你的记忆碎片（你记得：）】');
-      list.forEach(m => L.push('· ' + m));
-      L.push('');
-    }
-    if (p.shared && p.shared.length) {
-      L.push('【你们之间发生过的事】');
-      p.shared.forEach(m => L.push('· ' + m));
+  }
+  if (p.shared && p.shared.length) {
+    L.push('【你们之间发生过的（最近）】');
+    p.shared.slice(-3).forEach(m => L.push('· ' + m));
+    L.push('');
+  }
+  if (p.bio && p.bio.length && p.deepBg) {
+    const chapters = p.bio.slice(0, 8)
+      .map(s => (s.t ? '◆' + s.t + '：' : '') + trunc(String(s.c || ''), 100))
+      .filter(x => x.length > 1);
+    if (chapters.length) {
+      L.push('【你的生平脉络（浓缩版，只作人物底色，不逐章展开）】');
+      chapters.forEach(x => L.push(x));
       L.push('');
     }
   }
