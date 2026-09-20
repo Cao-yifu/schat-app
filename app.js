@@ -25,6 +25,12 @@ function loadDB() {
     temp: 0.9, maxHist: 400, onboardDone: false, myAvatar: '我'
   }, raw.settings || {});
   DB = raw;
+  // 迁移：老数据补上声音指纹
+  if (window.SUNDUO) {
+    DB.personas.forEach(p => {
+      if (!p.voice) p.voice = (p.name === window.SUNDUO.name) ? JSON.parse(JSON.stringify(window.SUNDUO.voice)) : null;
+    });
+  }
   if (!DB.personas.length && !DB.settings.seeded) seedSunDuo();
   save();
 }
@@ -43,6 +49,7 @@ function seedSunDuo() {
     bio: sd.bio.map(x => ({ t: x.t, c: x.c })),
     memories: sd.memories.slice(),
     shared: sd.shared.slice(),
+    voice: sd.voice ? JSON.parse(JSON.stringify(sd.voice)) : null,
     rules: sd.rules.slice(),
     prefs: sd.prefs.slice(),
     msgs: [],
@@ -261,8 +268,40 @@ async function metaAck(p, instruction) {
   }
 }
 
+/* ================= 记忆检索注入：记忆库无限大，每次只喂相关的 ================= */
+function tokenize(s) {
+  const toks = new Set();
+  s = String(s).toLowerCase();
+  const en = s.match(/[a-z0-9]+/g) || [];
+  en.forEach(w => { if (w.length > 1) toks.add(w); });
+  const zh = s.replace(/[^\u4e00-\u9fa5]/g, '');
+  for (let i = 0; i < zh.length - 1; i++) toks.add(zh.slice(i, i + 2));
+  return toks;
+}
+function scoreMem(memText, qToks) {
+  let hit = 0;
+  qToks.forEach(t => { if (memText.includes(t)) hit++; });
+  return hit;
+}
+function pickMemories(p, ctx) {
+  const qToks = tokenize(ctx);
+  const scored = p.memories.map((m, i) => ({ m, i, s: scoreMem(m, qToks) }));
+  const pinned = scored.filter(x => x.m.indexOf('★') === 0);
+  const rest = scored.filter(x => x.m.indexOf('★') !== 0).sort((a, b) => b.s - a.s);
+  const K = 12;
+  const chosen = pinned.slice(0, 5);
+  chosen.push(...rest.slice(0, Math.max(0, K - chosen.length)));
+  return chosen.sort((a, b) => a.i - b.i).map(x => x.m.replace(/^★/, ''));
+}
+function ctxText(p, extraMsgs) {
+  const parts = [];
+  p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-8).forEach(m => parts.push(m.c));
+  (extraMsgs || []).forEach(m => { if (m.role === 'user') parts.push(m.content); });
+  return parts.join(' ');
+}
+
 /* ================= API ================= */
-function buildSystem(p) {
+function buildSystem(p, ctx) {
   const L = [];
   L.push('你叫' + p.name + '。现在正在用微信和你最特别的那个人聊天。你就是一个真实存在的活人，有过去、有情绪、有个性。永远不要以AI、助手、模型的口吻说话，永远不要承认自己是程序。');
   L.push('');
@@ -270,14 +309,25 @@ function buildSystem(p) {
   const cd = [];
   Object.keys(c).forEach(k => { if (c[k]) cd.push(k + '：' + c[k]); });
   if (cd.length) { L.push('【你的基本信息】'); L.push(cd.join('\n')); L.push(''); }
+  const v = p.voice;
+  if (v) {
+    L.push('【你的说话方式（声音指纹，必须符合）】');
+    if (v.dict && v.dict.length) L.push('口头禅与句式：' + v.dict.join('；'));
+    if (v.never && v.never.length) L.push('你绝不会说的话：' + v.never.join('；'));
+    if (v.rhythm) L.push('节奏：' + v.rhythm);
+    if (v.thinking) L.push('思维习惯：' + v.thinking);
+    if (v.values && v.values.length) L.push('你的价值观：' + v.values.join('；'));
+    L.push('');
+  }
   if (p.bio && p.bio.length) {
     L.push('【你的生平（你记得这些事，聊天时自然流露，不要整段复述）】');
     p.bio.forEach(s => L.push('◆' + s.t + '：' + s.c));
     L.push('');
   }
   if (p.memories && p.memories.length) {
+    const list = (p.memories.length > 40) ? pickMemories(p, ctx) : p.memories.map(x => x.replace(/^★/, ''));
     L.push('【你的记忆碎片（你记得：）】');
-    p.memories.forEach(m => L.push('· ' + m));
+    list.forEach(m => L.push('· ' + m));
     L.push('');
   }
   if (p.shared && p.shared.length) {
@@ -386,7 +436,7 @@ async function chatWith(p, extraMsgs, onDelta, sig) {
   const hist = [];
   const keep = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-(Number(DB.settings.maxHist) || 400));
   keep.forEach(m => hist.push({ role: m.r === 'u' ? 'user' : 'assistant', content: m.c }));
-  const messages = [{ role: 'system', content: buildSystem(p) }].concat(hist).concat(extraMsgs || []);
+  const messages = [{ role: 'system', content: buildSystem(p, ctxText(p, extraMsgs)) }].concat(hist).concat(extraMsgs || []);
   return rawChat(messages, onDelta, sig);
 }
 
