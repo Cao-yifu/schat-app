@@ -377,7 +377,7 @@ function renderHome() {
 }
 
 /* ================= 角色（资料介绍区） ================= */
-const KEY_LABELS = { age: '年龄', birthday: '生日', sign: '星座', hometown: '籍贯', resident: '现居', job: '职业', height: '身高', build: '体型', face: '长相', hair: '头发', hands: '手', style: '穿衣风格', voice: '声音', 年龄: '年龄', 身份: '身份', 外貌: '外貌', 性格: '性格', 与你的关系: '与你的关系', 细节: '细节', 生日: '生日', 籍贯: '籍贯', 现居: '现居', 职业: '职业', 身高: '身高', 其他: '其他' };
+const KEY_LABELS = { age: '年龄', birthday: '生日', sign: '星座', hometown: '籍贯', resident: '现居', job: '职业', height: '身高', build: '体型', face: '长相', hair: '头发', hands: '手', style: '穿衣风格', voice: '声音', smell: '气息', favorites: '喜好', 年龄: '年龄', 身份: '身份', 外貌: '外貌', 性格: '性格', 与你的关系: '与你的关系', 细节: '细节', 生日: '生日', 籍贯: '籍贯', 现居: '现居', 职业: '职业', 身高: '身高', 其他: '其他' };
 function cardLine(p) {
   const c = p.card || {};
   return c['身份'] || c['职业'] || c['job'] || c['性格'] || '';
@@ -902,7 +902,7 @@ function buildSystem(p, ctx) {
   L.push('');
   const c = p.card || {};
   const cd = [];
-  Object.keys(c).forEach(k => { if (c[k]) cd.push(k + '：' + c[k]); });
+  Object.keys(c).forEach(k => { if (c[k]) cd.push((KEY_LABELS[k] || k) + '：' + c[k]); });
   if (cd.length) { L.push('【你的基本信息】'); L.push(cd.join('\n')); L.push(''); }
   if (p.base && p.base.length) {
     L.push('【对方对你定的基础设定（人格底层，最高优先级，永远遵守）】');
@@ -911,8 +911,8 @@ function buildSystem(p, ctx) {
   }
   const v = p.voice;
   if (v) {
-    L.push('【你的说话方式（语感参考，不是台词清单：自然融入，绝不机械照搬、绝不在不合时宜时突然甩句）】');
-    if (v.dict && v.dict.length) L.push('语气参考：' + v.dict.slice(0, 8).join('；'));
+    L.push('【你的说话方式（这是你的说话风格，自然使用这种语气，但不要逐句照抄、不要在不合时宜时突然甩句）】');
+    if (v.dict && v.dict.length) L.push('语气参考：' + pickDict(v.dict, 12).join('；'));
     if (v.never && v.never.length) L.push('你的风格底线：' + v.never.join('；'));
     if (v.rhythm) L.push('节奏：' + v.rhythm);
     if (v.thinking) L.push('思维习惯：' + v.thinking);
@@ -920,10 +920,10 @@ function buildSystem(p, ctx) {
     if (v.intim) L.push('（以下只描述你们亲密时的状态，日常聊天绝不提前搬用）亲密时的你：' + v.intim);
     L.push('');
   }
-  // 过去与记忆：有选择地注入——贴题的最多6条记忆 + 最近3条共同经历。
+  // 过去与记忆：有选择地注入——贴题的最多8条记忆 + 最近5条共同经历。
   // 角色要有过去，但历史是底色不是台词，绝不倾倒数据。
   if (p.memories && p.memories.length) {
-    const picked = pickMemories(p, ctx).slice(0, 6);
+    const picked = pickMemories(p, ctx).slice(0, 8);
     if (picked.length) {
       L.push('【你记得的往事（只在聊到相关话题时自然带出，不要整段复述、不要主动背诵）】');
       picked.forEach(m => L.push('· ' + m));
@@ -932,12 +932,12 @@ function buildSystem(p, ctx) {
   }
   if (p.shared && p.shared.length) {
     L.push('【你们之间发生过的（最近）】');
-    p.shared.slice(-3).forEach(m => L.push('· ' + m));
+    p.shared.slice(-5).forEach(m => L.push('· ' + m));
     L.push('');
   }
   if (p.bio && p.bio.length && p.deepBg) {
-    const chapters = p.bio.slice(0, 8)
-      .map(s => (s.t ? '◆' + s.t + '：' : '') + trunc(String(s.c || ''), 100))
+    const chapters = p.bio.slice(0, 12)
+      .map(s => (s.t ? '◆' + s.t + '：' : '') + trunc(String(s.c || ''), 160))
       .filter(x => x.length > 1);
     if (chapters.length) {
       L.push('【你的生平脉络（浓缩版，只作人物底色，不逐章展开）】');
@@ -1056,6 +1056,15 @@ async function rawChat(messages, onDelta, sig) {
   }
 }
 
+/* 语气参考采样：长列表按间隔取 n 条，覆盖整份列表，避免只取最前面的平淡几条 */
+function pickDict(dict, n) {
+  if (!dict || !dict.length) return [];
+  if (dict.length <= n) return dict.slice();
+  const out = [];
+  const step = dict.length / n;
+  for (let i = 0; i < n; i++) out.push(dict[Math.floor(i * step)]);
+  return out;
+}
 /* 清洗主动消息里的内部指令污染：追问/提醒/RS-LS 确认时模型可能复述指令 */
 function cleanProactive(text) {
   let t = String(text || '');
