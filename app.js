@@ -58,6 +58,32 @@ function loadDB() {
     });
   }
   if (!DB.personas.length && !DB.settings.seeded) seedSunDuo();
+  // 批量情人安装（只装一次；按名字去重，删掉的不再补装）
+  if (window.LOVERS && !DB.settings.loversV1) {
+    window.LOVERS.forEach(L => {
+      if (!L || !L.name) return;
+      if (DB.personas.some(p => p.name === L.name)) return;
+      DB.personas.push({
+        id: 'p' + Date.now() + Math.floor(Math.random() * 1e6),
+        name: L.name,
+        nickname: L.nickname || L.name,
+        avatarColor: L.avatarColor || colorFor(L.name),
+        avatar: L.avatar || null,
+        base: [],
+        deepBg: false,
+        card: Object.assign({}, L.card || {}),
+        bio: (L.bio || []).slice(),
+        memories: (L.memories || []).slice(),
+        shared: (L.shared || []).slice(),
+        voice: L.voice ? JSON.parse(JSON.stringify(L.voice)) : null,
+        rules: (L.rules || []).slice(),
+        prefs: [],
+        msgs: [],
+        createdAt: Date.now()
+      });
+    });
+    DB.settings.loversV1 = true;
+  }
   save();
 }
 function save() {
