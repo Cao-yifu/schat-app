@@ -58,12 +58,12 @@ function loadDB() {
     });
     DB.settings.histScrubV1 = true;
   }
-  // 一次性修复：清洗所有角色历史里泄漏的「内部指令」残片（追问/提醒/RS-LS 确认污染）
-  if (!DB.settings.histScrubV2) {
+  // 一次性修复：清洗所有角色历史里泄漏的「内部指令」残片与界面残片（追问/提醒/RS-LS 确认污染）
+  if (!DB.settings.histScrubV3) {
     DB.personas.forEach(p => {
-      p.msgs.forEach(m => { if (m.r === 'a' && typeof m.c === 'string') m.c = cleanProactive(m.c); });
+      p.msgs.forEach(m => { if (m.r === 'a' && typeof m.c === 'string') m.c = cleanOutput(m.c); });
     });
-    DB.settings.histScrubV2 = true;
+    DB.settings.histScrubV3 = true;
   }
   // 温度护栏：越界/损坏的温度值拉回安全区间，防止回复发散
   {
@@ -770,7 +770,7 @@ async function metaAck(p, instruction) {
   showTyping(false);
   if (cur !== p.id) return;
   if (res.ok) {
-    const t = (res.demo ? '收到。' : trimReply(cleanProactive(out)));
+    const t = (res.demo ? '收到。' : trimReply(cleanOutput(out)));
     if (t) { pushMsg(p, { r: 'a', c: t, t: Date.now() }); renderChat(); }
   } else {
     toast(res.error);
@@ -941,7 +941,8 @@ function buildSystem(p, ctx) {
   L.push('现在是' + nowStr(eff) + '。你的问候、作息、吃饭、约会必须符合这个时间，绝不说错早晚。时间只随现实流逝，你不自己跳时间（不说“第二天”），除非对方发【X小时后】。你承诺过的时间必须遵守：说了“20分钟就到”，这20分钟里你就还在路上；对方问到了没，按真实经过的时间回答。');
   L.push('你是' + p.name + '，真实存在的活人，不是AI，绝不以AI/助手/模型口吻说话。只输出中文聊天内容（对方要求除外），绝不输出代码、列表、表情符号。');
   L.push('说话方式：微信口吻，短句口语。回复一定要短：一般1-2句，最多3句；只有对方明确要你展开或写细节时，才允许写长，最多400字。一条回复连续一段、绝不换行，不写动作/心理/括号/旁白。绝不重复、绝不铺垫、绝不解释。说完就停。');
-  L.push('节奏：适度主动——主动开话题、追问、约见、推进暧昧；不被动应答，也不轰炸。你此刻的生活：' + schedAct(p, eff) + '。你忙的时候回得简短，或说“等会说”。');
+  L.push('节奏：适度主动——主动开话题、追问、约见、推进暧昧；不被动应答，也不轰炸。你的日常作息（只在没有具体场景时作参考）：' + schedAct(p, eff) + '。你忙的时候回得简短，或说“等会说”。');
+  L.push('场景连贯最重要：如果你们正在某个具体场景里（见面、拥抱、同处一室、一起出门等），就专注当下这个场景继续演，绝不突然跳到别处、绝不突然换地点换话题。上一轮你们在做什么、在哪、是什么状态，这一轮就接着来。');
   L.push('偶尔（隔很多条消息才一次）可以用【图：内容描述】发一张生活照（第一人称、画面无人物）。');
   L.push('');
   const c = p.card || {};
@@ -977,6 +978,7 @@ function buildSystem(p, ctx) {
     }
   }
   if (p.injectMode === 'rich') {
+    L.push('【资料使用纪律】下面的生平、记忆、共同经历、口头禅是你这个人的底色，不是台词本：聊天时只在相关话题自然带出一两句，绝不整段背诵；当前你们正在进行的场景永远优先，绝不因资料里的词突然跳到无关的过去或别处。');
     if (p.bio && p.bio.length) {
       L.push('【你的生平（你记得这些事，聊天时自然流露，不要整段复述）】');
       p.bio.forEach(s => L.push('◆' + s.t + '：' + s.c));
@@ -1150,12 +1152,21 @@ function cleanProactive(text) {
   t = t.replace(/^\s*[：:]\s*/, '');
   return t.trim();
 }
+/* 输出净化：拦截模型偶发的界面残片/乱码词（如"跳转到-"），防止写进历史被模仿 */
+function cleanOutput(text) {
+  let t = cleanProactive(text);
+  t = t.split('跳转到').join('');
+  t = t.split('跳转至').join('');
+  t = t.replace(/^[\s\-—–—]+/, '');
+  t = t.replace(/\s{2,}/g, ' ');
+  return t.trim();
+}
 
 function buildHist(p) {
   const hist = [];
   let keep = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-(Number(DB.settings.maxHist) || 400));
-  // 过滤仍带指令残片的助手消息（双保险），防止污染史继续毒化上下文
-  keep = keep.filter(m => !(m.r === 'a' && /内部指令|不要复述/.test(m.c)));
+  // 过滤仍带指令残片/界面残片的助手消息（双保险），防止污染史继续毒化上下文
+  keep = keep.filter(m => !(m.r === 'a' && /内部指令|不要复述|跳转到/.test(m.c)));
   // 总量限流：从最新往回累计，超过上限就丢最旧的，防止超长上下文劣化
   let total = 0;
   const slim = [];
@@ -1287,7 +1298,7 @@ async function doSend() {
   }
   let rawT = bub.textContent.trim();
   const parsed = extractPhotos(rawT);
-  const t = trimReply(parsed.text);
+  const t = trimReply(cleanOutput(parsed.text));
   bub.textContent = t;
   if (parsed.imgs.length) parsed.imgs.forEach(im => addImgToBub(bub, im, saveMsg));
   if (!t && !parsed.imgs.length) {
@@ -1326,7 +1337,7 @@ async function proactiveMsg(p, instruction) {
   let out = '';
   const res = await chatWith(p, [{ role: 'user', content: '（内部指令，不要复述指令）' + instruction }], d => { out += d; }, null);
   if (isCur && !streaming) showTyping(false);
-  const t = trimReply(cleanProactive(out));
+  const t = trimReply(cleanOutput(out));
   if (t) {
     pushMsg(p, { r: 'a', c: t, t: Date.now() });
     if (isCur) renderChat();
