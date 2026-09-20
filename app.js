@@ -130,7 +130,15 @@ function loadDB() {
   save();
 }
 function save() {
-  try { localStorage.setItem(K, JSON.stringify(DB)); } catch (e) {
+  try { localStorage.setItem(K, JSON.stringify(DB)); return; } catch (e) {
+    // 存储满：清除所有旧图（保留文字记录）后重试一次
+    let stripped = false;
+    DB.personas.forEach(p => {
+      p.msgs.forEach(m => { if (m.img) { m.img = undefined; stripped = true; } });
+    });
+    if (stripped) {
+      try { localStorage.setItem(K, JSON.stringify(DB)); toast('存储空间不足：已清除图片缓存，文字记录完好'); return; } catch (e2) {}
+    }
     toast('本地存储空间不足，请导出备份后清理');
   }
 }
@@ -331,7 +339,7 @@ function renderChat() {
       const qq = el('div', 'qq', '「' + trunc(m.q.c, 120) + '」');
       bub.insertBefore(qq, bub.firstChild);
     }
-    if (m.img && m.img.length) m.img.forEach(im => addImgToBub(bub, im));
+    if (m.img && m.img.length) m.img.forEach(im => addImgToBub(bub, im, m));
     wrap.appendChild(bub);
     row.appendChild(ava); row.appendChild(wrap);
     box.appendChild(row);
@@ -471,13 +479,14 @@ function ctxText(p, extraMsgs) {
   return parts.join(' ');
 }
 
-function nowStr() {
-  const d = new Date();
+function nowStr(d) {
+  d = d || new Date();
   const wd = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
   const h = d.getHours();
   const ap = h < 6 ? '凌晨' : h < 9 ? '早上' : h < 12 ? '上午' : h < 14 ? '中午' : h < 18 ? '下午' : '晚上';
+  const hh = h > 12 ? h - 12 : h;
   const mi = d.getMinutes() ? d.getMinutes() + '分' : '整';
-  return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 星期' + wd + ' ' + ap + h + '点' + mi;
+  return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 星期' + wd + ' ' + ap + hh + '点' + mi;
 }
 
 /* ================= API ================= */
@@ -507,7 +516,7 @@ function extractPhotos(text) {
   });
   return { text: t, imgs };
 }
-const IMG_TAGS = [['面', 'noodles'], ['咖啡', 'coffee'], ['猫', 'cat'], ['狗', 'dog'], ['车', 'motorcycle'], ['健身房', 'gym'], ['酒店', 'hotel room'], ['夜', 'city night'], ['雨', 'rain'], ['雪', 'snow'], ['海', 'sea'], ['花', 'flowers'], ['书', 'books'], ['医院', 'hospital'], ['酒吧', 'bar'], ['饭', 'food']];
+const IMG_TAGS = [['火锅', 'hotpot'], ['奶茶', 'milk tea'], ['面', 'noodles'], ['咖啡', 'coffee'], ['猫', 'cat'], ['狗', 'dog'], ['车', 'motorcycle'], ['健身房', 'gym'], ['酒店', 'hotel room'], ['夜', 'city night'], ['雨', 'rain'], ['雪', 'snow'], ['海', 'sea'], ['花', 'flowers'], ['书', 'books'], ['医院', 'hospital'], ['酒吧', 'bar'], ['酒', 'wine'], ['蛋糕', 'cake'], ['夕阳', 'sunset'], ['天空', 'sky'], ['饭', 'food']];
 function fallbackImgTag(desc) {
   for (const [zh, en] of IMG_TAGS) {
     if (desc.includes(zh)) return en;
@@ -517,7 +526,6 @@ function fallbackImgTag(desc) {
 function setImg(bub, url, im) {
   const img = document.createElement('img');
   img.alt = im.d;
-  img.loading = 'lazy';
   img.src = url;
   img.onerror = () => {
     img.outerHTML = '';
@@ -525,38 +533,67 @@ function setImg(bub, url, im) {
   };
   bub.appendChild(img);
 }
-async function addImgToBub(bub, im) {
+/* 抓取网络图 → 压缩 512px → dataURL 永久存进聊天记录 */
+async function cacheImg(im) {
+  try {
+    const resp = await fetch('https://loremflickr.com/768/768/' + fallbackImgTag(im.d));
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const dataUrl = await new Promise((res, rej) => {
+      const img2 = new Image();
+      img2.onload = () => {
+        try {
+          const max = 512;
+          const sc = Math.min(1, max / Math.max(img2.width, img2.height));
+          const cv = document.createElement('canvas');
+          cv.width = Math.max(1, Math.round(img2.width * sc));
+          cv.height = Math.max(1, Math.round(img2.height * sc));
+          cv.getContext('2d').drawImage(img2, 0, 0, cv.width, cv.height);
+          res(cv.toDataURL('image/jpeg', 0.72));
+        } catch (e) { rej(e); }
+      };
+      img2.onerror = rej;
+      img2.src = url;
+    });
+    URL.revokeObjectURL(url);
+    return dataUrl;
+  } catch (e) { return null; }
+}
+async function addImgToBub(bub, im, msg) {
   if (!DB.settings.imgOn) {
     bub.textContent += (bub.textContent ? ' ' : '') + '（图：' + im.d + '）';
     return;
   }
-  const s = DB.settings;
-  // 有 MiniMax key → 官方文生图（内容最贴合）
-  if (String(s.base).toLowerCase().includes('minimax') && s.key) {
-    try {
-      const host = s.base.toLowerCase().includes('minimax.io') ? 'https://api.minimax.io' : 'https://api.minimaxi.com';
-      const resp = await fetch(host + '/v1/image_generation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + s.key },
-        body: JSON.stringify({
-          model: 'image-01',
-          prompt: 'no people, no face, no human, first-person view photo, realistic, ' + im.d,
-          aspect_ratio: '1:1',
-          n: 1
-        })
-      });
-      const j = await resp.json();
-      const url = j && j.data && j.data.image_urls && j.data.image_urls[0];
-      if (url) { setImg(bub, url, im); return; }
-    } catch (e) { /* 失败走兜底 */ }
-  }
-  // 兜底：随机网络图库（按关键词取图）
-  setImg(bub, 'https://loremflickr.com/768/768/' + fallbackImgTag(im.d), im);
+  // 占位：加载中
+  const ph = document.createElement('div');
+  ph.className = 'imgload';
+  ph.textContent = '📷 ' + trunc(im.d, 18) + '…';
+  bub.appendChild(ph);
+  (async () => {
+    let src = im.src || null;
+    if (!src) {
+      src = await cacheImg(im);
+      if (src) {
+        im.src = src;              // 永久缓存：写进这条消息
+        if (msg) save();
+      }
+    }
+    if (src) {
+      const img = document.createElement('img');
+      img.alt = im.d;
+      img.src = src;
+      img.onerror = () => { img.outerHTML = ''; ph.textContent = '（图：' + im.d + '）'; };
+      ph.replaceWith(img);
+    } else {
+      ph.textContent = '（图：' + im.d + '）';
+    }
+  })();
 }
 
 function buildSystem(p, ctx) {
   const L = [];
-  L.push('现在是' + nowStr() + '。');
+  L.push('【当前时间】现在是' + nowStr() + '。你必须时刻清楚这一点：问候、作息、吃饭、约会、天气等所有话题都要符合当前时段，绝不能说错早晚（比如晚上绝不说“早上好”）。');
   L.push('你叫' + p.name + '。你是真实存在的活人，不是AI，绝不以AI/助手/模型的口吻说话，绝不承认自己是程序。');
   L.push('');
   L.push('【铁律·说话方式（比什么都重要）】用微信聊天口吻：短句、口语。一条回复就是连续的一段文字，绝不换行、绝不分段，绝不写动作/心理/括号/旁白。长度跟着情绪走：平常1-3句很短；情绪浓、情到深处、对方想听细节时放开写，300-800字都正常。绝不重复、绝不铺垫、绝不解释。说完就停。');
@@ -617,7 +654,7 @@ function buildSystem(p, ctx) {
     tmp.forEach(m => L.push('· ' + m));
     L.push('');
   }
-  L.push('【再次强调】绝不换行分段；长度自然：平常短、情深处长（可达300-800字）。绝不重复。说完就停。');
+  L.push('【再次强调】现在是' + nowStr() + '，你的问候和作息必须符合这个时间，绝不说错早晚。绝不换行分段；长度自然：平常短、情深处长（可达300-800字）。绝不重复。说完就停。');
   return L.join('\n');
 }
 
@@ -830,7 +867,7 @@ async function doSend() {
   const parsed = extractPhotos(rawT);
   const t = trimReply(parsed.text);
   bub.textContent = t;
-  if (parsed.imgs.length) parsed.imgs.forEach(im => addImgToBub(bub, im));
+  if (parsed.imgs.length) parsed.imgs.forEach(im => addImgToBub(bub, im, saveMsg));
   if (!t && !parsed.imgs.length) {
     bub.textContent = '（没说出话来）';
     toast('他这次没有回应，可能被限流了，再发一次试试');
@@ -1075,7 +1112,7 @@ function showSettings() {
   iHist.oninput = () => { s.maxHist = parseInt(iHist.value) || 400; save(); };
   f6.appendChild(iHist);
   const f7 = el('div', 'fld');
-  f7.appendChild(el('label', '', '照片功能（TA 发图分享日常；MiniMax key 时用官方生图，否则随机网络图库）'));
+  f7.appendChild(el('label', '', '照片功能（TA 发图分享日常；免费随机网络图库，不调用付费生图）'));
   const cbImg = el('input');
   cbImg.type = 'checkbox';
   cbImg.checked = s.imgOn !== false;
