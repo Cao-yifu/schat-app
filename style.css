@@ -167,3 +167,67 @@ details.sec .cb { padding:4px 16px 16px; }
 .onboard p, .onboard li { font-size:14px; color:var(--text-2); line-height:1.7; }
 .onboard ol { padding-left:20px; margin:6px 0 14px; }
 .onboard .gbtn { margin-top:4px; }
+
+/* ============ 底部标签栏（微信式四界面） ============ */
+.tabbar {
+  position:absolute; left:0; right:0; bottom:0; z-index:20;
+  height:calc(58px + var(--safe-b)); padding-bottom:var(--safe-b);
+  background:rgba(26,33,29,0.97); border-top:1px solid var(--line);
+  display:none; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
+.tabbar.show { display:flex; }
+.tab { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; position:relative; color:var(--text-3); }
+.tab.on { color:var(--sage); }
+.tab .tic { display:flex; align-items:center; justify-content:center; height:24px; position:relative; }
+.tab .tic svg { width:24px; height:24px; }
+.tab .tl { font-size:10.5px; letter-spacing:0.3px; }
+.tab .badge {
+  position:absolute; top:3px; left:calc(50% + 7px); min-width:16px; height:16px;
+  border-radius:8px; background:var(--red); color:#fff; font-size:10px; line-height:16px;
+  text-align:center; padding:0 4px; display:none;
+}
+.tabpage .scroll { padding-bottom:calc(72px + var(--safe-b)); }
+
+/* ============ 角色页 ============ */
+.roleDetail-bd, .bd { padding-bottom:28px; }
+.profile { display:flex; flex-direction:column; align-items:center; padding:26px 16px 20px; }
+.profile .bava { width:78px; height:78px; border-radius:16px; color:#fff; display:flex; align-items:center; justify-content:center; font-size:32px; font-weight:600; }
+.profile .pname { font-size:21px; font-weight:600; margin-top:12px; }
+.profile .pid2 { font-size:13px; color:var(--text-2); margin-top:5px; text-align:center; max-width:86%; line-height:1.5; }
+.profile .btns { display:flex; gap:10px; margin-top:16px; width:100%; max-width:320px; }
+.profile .btns .gbtn { margin-top:0; }
+.gbtn.ghost { background:transparent; border:1px solid var(--sage); color:var(--sage); }
+.kvrow { display:flex; padding:7px 0; font-size:14px; line-height:1.55; align-items:flex-start; }
+.kvrow .k { flex:none; width:84px; color:var(--text-3); font-size:12.5px; padding-top:1px; }
+.kvrow .v { flex:1; color:var(--text); word-break:break-word; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; padding-top:4px; }
+.chip { background:var(--card2); border:1px solid var(--line); border-radius:14px; padding:4px 11px; font-size:12.5px; color:var(--text-2); }
+.subt { font-size:12px; color:var(--text-3); margin:12px 0 4px; }
+.subt:first-child { margin-top:4px; }
+.lirow { padding:7px 0; font-size:14px; line-height:1.6; color:var(--text-2); word-break:break-word; }
+.biochapter { margin:10px 0 2px; font-size:13.5px; font-weight:600; color:var(--sage); }
+
+/* ============ 朋友圈 ============ */
+.moments { padding-bottom:calc(72px + var(--safe-b)); }
+.mpost { background:var(--surface); border-bottom:1px solid var(--line); padding:14px 16px 12px; }
+.mpost .mhd { display:flex; gap:10px; align-items:center; }
+.mpost .mava { width:40px; height:40px; border-radius:8px; flex:none; color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:600; }
+.mpost .mnm { font-size:15px; font-weight:600; color:var(--blue); }
+.mpost .mtime { font-size:11px; color:var(--text-3); }
+.mpost .mtxt { margin:10px 0 2px 50px; font-size:15.5px; line-height:1.55; word-break:break-word; white-space:pre-wrap; }
+.mbar { display:flex; align-items:center; justify-content:flex-end; gap:22px; padding:6px 0 2px; margin-left:50px; font-size:13px; color:var(--text-3); }
+.mbar .act { display:flex; align-items:center; gap:5px; cursor:pointer; }
+.mbar .act:active { color:var(--text-2); }
+.mbar .act.liked { color:var(--red); }
+.mfoot { margin:8px 0 0 50px; background:var(--card); border-radius:6px; padding:0 12px; }
+.mfoot .likeline { display:none; padding:8px 0; font-size:13px; color:var(--text-2); border-bottom:1px solid var(--line); align-items:center; gap:6px; }
+.mfoot .likeline.show { display:flex; }
+.mfoot .lk { color:var(--sage); cursor:pointer; }
+.mfoot .cmt { padding:7px 0; font-size:13.5px; color:var(--text-2); line-height:1.5; border-bottom:1px solid var(--line); word-break:break-word; }
+.mfoot .cmt:last-child { border-bottom:none; }
+.mfoot .cmt b { color:var(--blue); font-weight:600; margin-right:4px; }
+.cmtinput { display:none; align-items:center; gap:8px; margin:8px 0 4px 50px; }
+.cmtinput.show { display:flex; }
+.cmtinput input { flex:1; background:var(--card2); border:1px solid var(--line); border-radius:6px; padding:8px 10px; font-size:14px; color:var(--text); outline:none; min-width:0; }
+.cmtinput input:focus { border-color:var(--sage); }
+.cmtinput button { flex:none; background:var(--sage); border:none; color:#121715; border-radius:6px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; }
