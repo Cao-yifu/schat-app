@@ -41,6 +41,7 @@ function loadDB() {
   if (window.SUNDUO) {
     DB.personas.forEach(p => {
       if (!p.voice) p.voice = (p.name === window.SUNDUO.name) ? JSON.parse(JSON.stringify(window.SUNDUO.voice)) : null;
+      if (!Array.isArray(p.base)) p.base = [];
       if (!p._avatarCleared && !p.avatar && p.name === window.SUNDUO.name && window.SUNDUO.avatar) p.avatar = window.SUNDUO.avatar;
       // 规则升级：只替换已知旧文本，不动用户 RS 添加的规则
       RULE_FIX.forEach(([oldR, newR]) => {
@@ -68,6 +69,7 @@ function seedSunDuo() {
   DB.personas.push({
     id: 'p' + Date.now(),
     name: sd.name, nickname: sd.nickname, avatarColor: sd.avatarColor, avatar: sd.avatar || null,
+    base: [],
     card: Object.assign({}, sd.card),
     bio: sd.bio.map(x => ({ t: x.t, c: x.c })),
     memories: sd.memories.slice(),
@@ -337,10 +339,10 @@ function handleMeta(meta, p) {
   if (meta.type === 'LS_HINT') { toast('LS + 空格 + 内容 = 本次会话临时调整\nLS 清空 = 取消临时调整'); return; }
   if (meta.type === 'LS_CLEAR') { setTemp(p.id, []); sysLine('已清空本次会话的临时调整'); return; }
   if (meta.type === 'RS') {
-    if (!p.rules.includes(meta.rest)) p.rules.push(meta.rest);
+    if (!p.base.includes(meta.rest)) p.base.push(meta.rest);
     save();
-    sysLine('已更新人设（永久）：' + meta.rest);
-    metaAck(p, '刚刚有人通过内部指令永久修改了你的人设，新规则是：' + meta.rest + '。不要复述规则本身，用你自己的口吻，用一两句话确认你听懂了、会照做。');
+    sysLine('已写入他的基础设定（永久，清空聊天不受影响）：' + meta.rest);
+    metaAck(p, '刚刚有人通过内部指令，把一条设定写进了你的人格底层，这条设定是：' + meta.rest + '。不要复述设定本身，用你自己的口吻，用一两句话确认你听懂了、会照做。');
   } else if (meta.type === 'LS') {
     const arr = getTemp(p.id);
     arr.push(meta.rest);
@@ -415,6 +417,11 @@ function buildSystem(p, ctx) {
   const cd = [];
   Object.keys(c).forEach(k => { if (c[k]) cd.push(k + '：' + c[k]); });
   if (cd.length) { L.push('【你的基本信息】'); L.push(cd.join('\n')); L.push(''); }
+  if (p.base && p.base.length) {
+    L.push('【对方对你定的基础设定（人格底层，最高优先级，永远遵守）】');
+    p.base.forEach((r, i) => L.push((i + 1) + '. ' + r));
+    L.push('');
+  }
   const v = p.voice;
   if (v) {
     L.push('【你的说话方式（声音指纹，必须符合）】');
@@ -744,6 +751,12 @@ function secBase(p) {
     p.card = c; save();
   };
   f3.appendChild(taCard);
+  const f6 = el('div', 'fld');
+  f6.appendChild(el('label', '', '基础设定层（RS 永久写入，每行一条；清空聊天记录不影响这里）'));
+  const taBase = el('textarea');
+  taBase.value = (p.base || []).join('\n');
+  taBase.oninput = () => { p.base = taBase.value.split('\n').map(s => s.trim()).filter(Boolean); save(); };
+  f6.appendChild(taBase);
   const f4 = el('div', 'fld');
   f4.appendChild(el('label', '', '头像颜色（CSS 颜色值）'));
   const iCol = el('input');
@@ -762,7 +775,7 @@ function secBase(p) {
   const bClr = el('button', 'mini-btn', '恢复默认字母头像');
   bClr.onclick = () => { p.avatar = null; p._avatarCleared = true; save(); setAva(avaPrev, null, (p.name || '?')[0], p.avatarColor || colorFor(p.name)); };
   f5.appendChild(avaPrev); f5.appendChild(bUp); f5.appendChild(bClr);
-  cb.appendChild(f1); cb.appendChild(f2); cb.appendChild(f3); cb.appendChild(f4); cb.appendChild(f5);
+  cb.appendChild(f1); cb.appendChild(f2); cb.appendChild(f3); cb.appendChild(f6); cb.appendChild(f4); cb.appendChild(f5);
   d.appendChild(cb);
   return d;
 }
@@ -1041,7 +1054,7 @@ function showHelp() {
   const h = el('div', 'hint');
   h.innerHTML =
     '<b>聊天</b>：像用微信一样发消息。回车发送。<br><br>' +
-    '<b><span class="kbd">RS</span> + 空格 + 内容</b>：永久修改人设/规则，例：<span class="kbd">RS 以后每天睡前来找我</span><br>' +
+    '<b><span class="kbd">RS</span> + 空格 + 内容</b>：永久写入TA的基础设定层（清空聊天记录也不受影响），例：<span class="kbd">RS 以后每天睡前来找我</span><br>' +
     '<b><span class="kbd">LS</span> + 空格 + 内容</b>：只本次会话临时调整，例：<span class="kbd">LS 现在开始用英文</span><br>' +
     '<b><span class="kbd">LS 清空</span></b>：取消所有临时调整<br><br>' +
     '<b>提取记忆</b>：聊天页右上 ⋯ → 提取记忆，TA 会把最近聊的内容里该记住的（你的喜好、称呼、秘密）写进长期记忆。<br><br>' +
