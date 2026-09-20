@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Schat</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Schat">
+<meta name="theme-color" content="#EDEDED">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="./icons/icon-192.png">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<!-- 首页 -->
+<div id="page-home" class="page active">
+  <div class="hd">
+    <div class="ttl">Schat</div>
+    <div class="acts"><div class="act" id="homeAddBtn">＋</div></div>
+  </div>
+  <div class="scroll"><div class="list" id="homeList"></div></div>
+</div>
+
+<!-- 聊天页 -->
+<div id="page-chat" class="page">
+  <div class="hd">
+    <div class="back" id="chatBackBtn">‹</div>
+    <div class="ttl" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="chatName">…</div>
+    <div class="acts"><div class="act" id="chatMenuBtn">⋯</div></div>
+  </div>
+  <div class="scroll chat-scroll" id="chatScroll"></div>
+  <div class="inbar">
+    <div class="hold"><textarea id="inp" rows="1" placeholder=""></textarea></div>
+    <button class="send" id="sendBtn">发送</button>
+  </div>
+</div>
+
+<!-- ＋ 弹层 -->
+<div class="mask" id="mask-sheetPlus"></div>
+<div class="sheet" id="sheetPlus">
+  <div class="si" id="miNew">✨ 新建秘密情人</div>
+  <div class="si" id="miSettings">⚙ 设置与备份</div>
+  <div class="si" id="miHelp">❓ 帮助</div>
+  <div class="si" id="miExport">⬇ 导出备份</div>
+  <div class="si cancel">取消</div>
+</div>
+
+<!-- 聊天 ⋯ 弹层 -->
+<div class="mask" id="mask-sheetChat"></div>
+<div class="sheet" id="sheetChat">
+  <div class="si" id="miPersona">📖 TA的人设与记忆库</div>
+  <div class="si" id="miExtract">🧠 从最近聊天提取记忆</div>
+  <div class="si" id="miClearChat">🗑 清空聊天记录</div>
+  <div class="si" id="miHelp2">❓ 帮助</div>
+  <div class="si cancel">取消</div>
+</div>
+
+<!-- 人设面板 -->
+<div class="panel" id="panelPersona">
+  <div class="hd"><div class="back" onclick="closePanel('panelPersona')">‹</div><div class="ttl">TA的人设与记忆库</div><div class="acts"></div></div>
+  <div class="bd" id="panelPersonaBody"></div>
+</div>
+
+<!-- 设置面板 -->
+<div class="panel" id="panelSettings">
+  <div class="hd"><div class="back" onclick="closePanel('panelSettings')">‹</div><div class="ttl">设置</div><div class="acts"></div></div>
+  <div class="bd" id="panelSettingsBody"></div>
+</div>
+
+<!-- 新建面板 -->
+<div class="panel" id="panelAdd">
+  <div class="hd"><div class="back" onclick="closePanel('panelAdd')">‹</div><div class="ttl">新建秘密情人</div><div class="acts"></div></div>
+  <div class="bd" id="panelAddBody"></div>
+</div>
+
+<!-- 帮助面板 -->
+<div class="panel" id="panelHelp">
+  <div class="hd"><div class="back" onclick="closePanel('panelHelp')">‹</div><div class="ttl">帮助</div><div class="acts"></div></div>
+  <div class="bd" id="panelHelpBody"></div>
+</div>
+
+<!-- 首次引导 -->
+<div class="onboard" id="onboard">
+  <div class="bx">
+    <h3>开始之前，两件事</h3>
+    <p><b>1. 加到主屏幕</b>（iPhone）：</p>
+    <ol>
+      <li>Safari 打开本页</li>
+      <li>点底部「分享」按钮</li>
+      <li>选「添加到主屏幕」→ 完成</li>
+    </ol>
+    <p><b>2. 填 API Key</b>：主屏幕右上「＋」→「设置与备份」→ 填入你的 DeepSeek API Key，TA 才会真正开口。</p>
+    <button class="gbtn" id="onboardOk">知道了</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script src="./sun_duo.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
