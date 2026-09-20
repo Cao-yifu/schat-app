@@ -58,12 +58,21 @@ function loadDB() {
     });
     DB.settings.histScrubV1 = true;
   }
-  // 一次性修复：清洗所有角色历史里泄漏的「内部指令」残片与界面残片（追问/提醒/RS-LS 确认污染）
+  // 一次性修复：清洗所有角色历史里泄漏的「内部指令」残片（追问/提醒/RS-LS 确认污染）
   if (!DB.settings.histScrubV3) {
     DB.personas.forEach(p => {
-      p.msgs.forEach(m => { if (m.r === 'a' && typeof m.c === 'string') m.c = cleanOutput(m.c); });
+      p.msgs.forEach(m => { if (m.r === 'a' && typeof m.c === 'string') m.c = cleanProactive(m.c); });
     });
     DB.settings.histScrubV3 = true;
+  }
+  // 一次性修复：清除历史拼接标记被模型模仿的残片（"（过了一会儿…）"）
+  if (!DB.settings.histScrubV4) {
+    DB.personas.forEach(p => {
+      p.msgs.forEach(m => {
+        if (m.r === 'a' && typeof m.c === 'string') m.c = m.c.replace(/（过了一会儿(?:，[^）]*)?）/g, '').trim();
+      });
+    });
+    DB.settings.histScrubV4 = true;
   }
   // 温度护栏：越界/损坏的温度值拉回安全区间，防止回复发散
   {
@@ -770,7 +779,7 @@ async function metaAck(p, instruction) {
   showTyping(false);
   if (cur !== p.id) return;
   if (res.ok) {
-    const t = (res.demo ? '收到。' : trimReply(cleanOutput(out)));
+    const t = (res.demo ? '收到。' : trimReply(cleanProactive(out)));
     if (t) { pushMsg(p, { r: 'a', c: t, t: Date.now() }); renderChat(); }
   } else {
     toast(res.error);
@@ -957,9 +966,8 @@ function buildSystem(p, ctx) {
   const v = p.voice;
   if (v) {
     if (p.injectMode === 'rich') {
-      // 孙铎专属：原版全量注入（声音指纹原文 + 生平全章 + 记忆按话题 + 共同经历全部）
+      // 孙铎专属：原版全量注入（生平全章 + 记忆按话题 + 共同经历全部；不含预判的固定台词）
       L.push('【你的说话方式（声音指纹，必须符合）】');
-      if (v.dict && v.dict.length) L.push('口头禅与句式：' + v.dict.slice(0, 12).join('；'));
       if (v.never && v.never.length) L.push('你绝不会说的话：' + v.never.join('；'));
       if (v.rhythm) L.push('节奏：' + v.rhythm);
       if (v.thinking) L.push('思维习惯：' + v.thinking);
@@ -1043,7 +1051,7 @@ function buildSystem(p, ctx) {
     tmp.forEach(m => L.push('· ' + m));
     L.push('');
   }
-  L.push('【记住】回复短：最多3句，除非对方明确要求展开。绝不换行、绝不重复、绝不铺垫；说完就停。');
+  L.push('【记住】回复短：最多3句，除非对方明确要求展开。绝不换行、绝不重复、绝不铺垫；说完就停。对方问同样的问题，也要换新的说法回答，绝不重复你自己之前说过的原话。');
   return L.join('\n');
 }
 
@@ -1152,21 +1160,12 @@ function cleanProactive(text) {
   t = t.replace(/^\s*[：:]\s*/, '');
   return t.trim();
 }
-/* 输出净化：拦截模型偶发的界面残片/乱码词（如"跳转到-"），防止写进历史被模仿 */
-function cleanOutput(text) {
-  let t = cleanProactive(text);
-  t = t.split('跳转到').join('');
-  t = t.split('跳转至').join('');
-  t = t.replace(/^[\s\-—–—]+/, '');
-  t = t.replace(/\s{2,}/g, ' ');
-  return t.trim();
-}
 
 function buildHist(p) {
   const hist = [];
   let keep = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-(Number(DB.settings.maxHist) || 400));
-  // 过滤仍带指令残片/界面残片的助手消息（双保险），防止污染史继续毒化上下文
-  keep = keep.filter(m => !(m.r === 'a' && /内部指令|不要复述|跳转到/.test(m.c)));
+  // 过滤仍带指令残片的助手消息（双保险），防止污染史继续毒化上下文
+  keep = keep.filter(m => !(m.r === 'a' && /内部指令|不要复述/.test(m.c)));
   // 总量限流：从最新往回累计，超过上限就丢最旧的，防止超长上下文劣化
   let total = 0;
   const slim = [];
@@ -1180,8 +1179,8 @@ function buildHist(p) {
     if (m.r === 'u' && m.q && m.q.c) {
       hist.push({ role: 'user', content: '（你引用了' + (m.q.r === 'a' ? '他说过的话' : '你自己说过的话') + '：「' + trunc(m.q.c, 120) + '」，你针对它回复）\n' + m.c });
     } else if (m.r === 'a' && hist.length && hist[hist.length - 1].role === 'assistant') {
-      // 追问/提醒产生的连续两条消息合并为一条，保持对话结构正常
-      hist[hist.length - 1].content += '\n（过了一会儿，他又发来）' + m.c;
+      // 追问/提醒产生的连续两条消息合并为一条，保持对话结构正常（不带任何标记文字，防止模型模仿）
+      hist[hist.length - 1].content += '\n' + m.c;
     } else {
       hist.push({ role: m.r === 'u' ? 'user' : 'assistant', content: m.c });
     }
@@ -1298,7 +1297,7 @@ async function doSend() {
   }
   let rawT = bub.textContent.trim();
   const parsed = extractPhotos(rawT);
-  const t = trimReply(cleanOutput(parsed.text));
+  const t = trimReply(cleanProactive(parsed.text));
   bub.textContent = t;
   if (parsed.imgs.length) parsed.imgs.forEach(im => addImgToBub(bub, im, saveMsg));
   if (!t && !parsed.imgs.length) {
@@ -1337,7 +1336,7 @@ async function proactiveMsg(p, instruction) {
   let out = '';
   const res = await chatWith(p, [{ role: 'user', content: '（内部指令，不要复述指令）' + instruction }], d => { out += d; }, null);
   if (isCur && !streaming) showTyping(false);
-  const t = trimReply(cleanOutput(out));
+  const t = trimReply(cleanProactive(out));
   if (t) {
     pushMsg(p, { r: 'a', c: t, t: Date.now() });
     if (isCur) renderChat();
@@ -1582,7 +1581,7 @@ function buildMomentSystem(p) {
   const v = p.voice;
   if (v) {
     L.push('【你的说话方式】' + (v.rhythm || ''));
-    if (v.dict && v.dict.length) L.push('语气参考：' + pickDict(v.dict, 8).join('；'));
+    if (v.dict && v.dict.length && p.injectMode !== 'rich') L.push('语气参考：' + pickDict(v.dict, 8).join('；'));
   }
   return L.join('\n');
 }
