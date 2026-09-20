@@ -76,6 +76,7 @@ function loadDB() {
   if (window.SUNDUO) {
     DB.personas.forEach(p => {
       if (p.name === window.SUNDUO.name) p.injectMode = 'rich';   // 孙铎：原版全量注入
+      if (typeof p.pinned !== 'boolean') p.pinned = false;
       if (!p.voice) p.voice = (p.name === window.SUNDUO.name) ? JSON.parse(JSON.stringify(window.SUNDUO.voice)) : null;
       if (!Array.isArray(p.base)) p.base = [];
       if (typeof p.deepBg !== 'boolean') p.deepBg = false;
@@ -357,10 +358,38 @@ function preview(s, n) {
 }
 
 /* ================= 首页 ================= */
+let lpTimer = null, lpFired = false;
+function attachLongPress(row, onLong) {
+  const start = () => {
+    lpFired = false;
+    lpTimer = setTimeout(() => {
+      lpFired = true;
+      onLong();
+      if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) {} }
+    }, 550);
+  };
+  const cancel = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+  row.addEventListener('touchstart', start, { passive: true });
+  row.addEventListener('touchend', cancel);
+  row.addEventListener('touchmove', cancel);
+  row.addEventListener('mousedown', start);
+  row.addEventListener('mouseup', cancel);
+  row.addEventListener('mouseleave', cancel);
+}
+function togglePin(p) {
+  p.pinned = !p.pinned;
+  save();
+  renderHome();
+  toast(p.pinned ? '📌 已置顶 ' + p.name : '已取消置顶 ' + p.name);
+}
 function renderHome() {
   const list = $('homeList');
   list.innerHTML = '';
-  const ps = DB.personas.slice().sort((a, b) => (lastMsg(b).t || 0) - (lastMsg(a).t || 0));
+  const ps = DB.personas.slice().sort((a, b) => {
+    const pa = !!a.pinned, pb = !!b.pinned;
+    if (pa !== pb) return pa ? -1 : 1;              // 置顶的排最前
+    return (lastMsg(b).t || 0) - (lastMsg(a).t || 0);
+  });
   if (!ps.length) {
     list.innerHTML = '<div class="empty"><div class="big">🖤</div>还没有秘密情人<br><br><button class="addbtn" onclick="showAdd()">＋ 新建第一个</button></div>';
     return;
@@ -368,6 +397,7 @@ function renderHome() {
   ps.forEach(p => {
     const lm = lastMsg(p);
     const row = el('div', 'row');
+    if (p.pinned) row.classList.add('pinned');
     const ava = el('div', 'avatar');
     setAva(ava, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
     const unread = p.msgs.some(m => m.r === 'a' && m.t > (p.lastRead || 0));
@@ -378,9 +408,12 @@ function renderHome() {
     const mid = el('div', 'mid');
     mid.appendChild(el('div', 'nm', p.name));
     mid.appendChild(el('div', 'pv', preview(lm.c, 26)));
-    const tm = el('div', 'tm', fmtDayShort(lm.t || Date.now()));
-    row.appendChild(ava); row.appendChild(mid); row.appendChild(tm);
-    row.onclick = () => openChat(p.id);
+    const right = el('div', 'right');
+    right.appendChild(el('div', 'tm', fmtDayShort(lm.t || Date.now())));
+    if (p.pinned) right.appendChild(el('div', 'pin', '📌'));
+    row.appendChild(ava); row.appendChild(mid); row.appendChild(right);
+    row.onclick = () => { if (lpFired) { lpFired = false; return; } openChat(p.id); };
+    attachLongPress(row, () => togglePin(p));
     list.appendChild(row);
   });
 }
@@ -2086,6 +2119,7 @@ function showHelp() {
   const h = el('div', 'hint');
   h.innerHTML =
     '<b>聊天</b>：像用微信一样发消息。回车发送。<br><br>' +
+    '<b>置顶</b>：聊天列表<b>长按</b>某个角色，置顶或取消置顶；置顶的排在最上面，带 📌 标记。<br><br>' +
     '<b>角色</b>：底部「角色」页，每个 TA 的完整资料介绍（人设、作息、声音、记忆），点进去可发消息或编辑。<br><br>' +
     '<b>朋友圈</b>：底部「朋友圈」页，TA 们会不定期发动态，你可以点赞、评论。<br><br>' +
     '<b><span class="kbd">【X小时后】</span></b>：跳过时间，TA会按自己的时间表过完这段时间，例：<span class="kbd">【3小时后】</span><br>' +
