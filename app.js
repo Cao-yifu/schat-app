@@ -121,9 +121,13 @@ function loadDB() {
     DB.settings.loversV2 = true;
   }
   // 情人设定同步：card/voice/rules 跟随 LOVERS 新版本；新增情人自动安装（删过的记入墓碑不再装）
-  if (window.LOVERS_VER && (Number(DB.settings.loversVer) || 0) < window.LOVERS_VER) {
+  // 自愈式：版本号更新 OR 存在"该装没装"的人 → 都执行
+  {
     const removed = DB.settings.removedLovers || [];
-    window.LOVERS.forEach(L => {
+    const needInstall = window.LOVERS && window.LOVERS.some(L => L && L.name && !removed.includes(L.name) && !DB.personas.some(p => p.name === L.name));
+    if (!window.LOVERS || !((Number(DB.settings.loversVer) || 0) < window.LOVERS_VER || needInstall)) { /* skip */ }
+    else {
+      window.LOVERS.forEach(L => {
       if (!L || !L.name) return;
       const t = DB.personas.find(p => p.name === L.name);
       if (!t) {
@@ -156,8 +160,9 @@ function loadDB() {
       t.nickname = L.nickname || t.nickname;
       t.sched = L.sched ? JSON.parse(JSON.stringify(L.sched)) : t.sched;
       if (!t.state) t.state = { off: 0 };
-    });
-    DB.settings.loversVer = window.LOVERS_VER;
+      });
+      DB.settings.loversVer = window.LOVERS_VER;
+    }
   }
   save();
 }
