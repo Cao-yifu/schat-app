@@ -59,6 +59,11 @@ function loadDB() {
       if (!Array.isArray(p.base)) p.base = [];
       if (typeof p.deepBg !== 'boolean') p.deepBg = false;
       if (!p.state) p.state = { off: 0 };
+      if (typeof p.lastRead !== 'number') {
+        let mx = 0;
+        p.msgs.forEach(m => { if (m.r === 'a' && m.t > mx) mx = m.t; });
+        p.lastRead = mx || 0;   // 老数据：历史消息不点亮未读
+      }
       if (!p.sched && window.SUNDUO.sched && p.name === window.SUNDUO.name) p.sched = JSON.parse(JSON.stringify(window.SUNDUO.sched));
       if (!p._avatarCleared && !p.avatar && p.name === window.SUNDUO.name && window.SUNDUO.avatar) p.avatar = window.SUNDUO.avatar;
       // 规则升级：只替换已知旧文本，不动用户 RS 添加的规则
@@ -161,6 +166,7 @@ function seedSunDuo() {
     voice: sd.voice ? JSON.parse(JSON.stringify(sd.voice)) : null,
     sched: sd.sched ? JSON.parse(JSON.stringify(sd.sched)) : [],
     state: { off: 0 },
+    lastRead: 0,
     rules: sd.rules.slice(),
     prefs: sd.prefs.slice(),
     msgs: [],
@@ -279,6 +285,11 @@ function renderHome() {
     const row = el('div', 'row');
     const ava = el('div', 'avatar');
     setAva(ava, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
+    const unread = p.msgs.some(m => m.r === 'a' && m.t > (p.lastRead || 0));
+    if (unread) {
+      ava.style.position = 'relative';
+      ava.appendChild(el('span', 'udot'));
+    }
     const mid = el('div', 'mid');
     mid.appendChild(el('div', 'nm', p.name));
     mid.appendChild(el('div', 'pv', preview(lm.c, 26)));
@@ -295,7 +306,10 @@ function openChat(id) {
   quote = null;
   clearFollow();
   updateQuoteBar();
-  $('chatName').textContent = getP(id).name;
+  const pp = getP(id);
+  pp.lastRead = Date.now();
+  save();
+  $('chatName').textContent = pp.name;
   showPage('chat');
   renderChat();
   $('inp').focus();
@@ -305,7 +319,12 @@ function showPage(name) {
 }
 function backHome() { cur = null; clearFollow(); showPage('home'); renderHome(); }
 
-function pushMsg(p, m) { p.msgs.push(m); if (p.msgs.length > 5000) p.msgs = p.msgs.slice(-5000); save(); }
+function pushMsg(p, m) {
+  p.msgs.push(m);
+  if (p.msgs.length > 5000) p.msgs = p.msgs.slice(-5000);
+  if (cur === p.id) p.lastRead = Date.now();   // 正在看这个聊天 → 自动已读
+  save();
+}
 
 function renderChat() {
   const p = getPx();
