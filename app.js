@@ -58,6 +58,20 @@ function loadDB() {
     });
     DB.settings.histScrubV1 = true;
   }
+  // 一次性修复：清洗所有角色历史里泄漏的「内部指令」残片（追问/提醒/RS-LS 确认污染）
+  if (!DB.settings.histScrubV2) {
+    DB.personas.forEach(p => {
+      p.msgs.forEach(m => { if (m.r === 'a' && typeof m.c === 'string') m.c = cleanProactive(m.c); });
+    });
+    DB.settings.histScrubV2 = true;
+  }
+  // 温度护栏：越界/损坏的温度值拉回安全区间，防止回复发散
+  {
+    const t = Number(DB.settings.temp);
+    if (!isFinite(t)) DB.settings.temp = 0.8;
+    else if (t > 1.5) DB.settings.temp = 1.2;
+    else if (t < 0) DB.settings.temp = 0.8;
+  }
   // 迁移：老数据补上声音指纹
   if (window.SUNDUO) {
     DB.personas.forEach(p => {
@@ -712,7 +726,7 @@ async function metaAck(p, instruction) {
   showTyping(false);
   if (cur !== p.id) return;
   if (res.ok) {
-    const t = (res.demo ? '收到。' : trimReply(out.trim()));
+    const t = (res.demo ? '收到。' : trimReply(cleanProactive(out)));
     if (t) { pushMsg(p, { r: 'a', c: t, t: Date.now() }); renderChat(); }
   } else {
     toast(res.error);
@@ -1035,10 +1049,32 @@ async function rawChat(messages, onDelta, sig) {
   }
 }
 
+/* 清洗主动消息里的内部指令污染：追问/提醒/RS-LS 确认时模型可能复述指令 */
+function cleanProactive(text) {
+  let t = String(text || '');
+  t = t.replace(/\n+/g, '');
+  t = t.replace(/[（(]\s*内部指令[^）)]*[）)]/g, '');
+  t = t.replace(/[（(]\s*不要复述[^）)]*[）)]/g, '');
+  t = t.replace(/\s*内部指令\s*/g, '');
+  t = t.replace(/^\s*[：:]\s*/, '');
+  return t.trim();
+}
+
 function buildHist(p) {
   const hist = [];
-  const keep = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-(Number(DB.settings.maxHist) || 400));
-  keep.forEach(m => {
+  let keep = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-(Number(DB.settings.maxHist) || 400));
+  // 过滤仍带指令残片的助手消息（双保险），防止污染史继续毒化上下文
+  keep = keep.filter(m => !(m.r === 'a' && /内部指令|不要复述/.test(m.c)));
+  // 总量限流：从最新往回累计，超过上限就丢最旧的，防止超长上下文劣化
+  let total = 0;
+  const slim = [];
+  for (let i = keep.length - 1; i >= 0; i--) {
+    const c = trunc(keep[i].c, 500);
+    total += c.length;
+    if (total > 24000 && slim.length >= 8) break;
+    slim.unshift({ r: keep[i].r, c: c, q: keep[i].q });
+  }
+  slim.forEach(m => {
     if (m.r === 'u' && m.q && m.q.c) {
       hist.push({ role: 'user', content: '（你引用了' + (m.q.r === 'a' ? '他说过的话' : '你自己说过的话') + '：「' + trunc(m.q.c, 120) + '」，你针对它回复）\n' + m.c });
     } else if (m.r === 'a' && hist.length && hist[hist.length - 1].role === 'assistant') {
@@ -1199,7 +1235,7 @@ async function proactiveMsg(p, instruction) {
   let out = '';
   const res = await chatWith(p, [{ role: 'user', content: '（内部指令，不要复述指令）' + instruction }], d => { out += d; }, null);
   if (isCur && !streaming) showTyping(false);
-  const t = trimReply(out.trim());
+  const t = trimReply(cleanProactive(out));
   if (t) {
     pushMsg(p, { r: 'a', c: t, t: Date.now() });
     if (isCur) renderChat();
