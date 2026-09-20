@@ -120,12 +120,35 @@ function loadDB() {
     }
     DB.settings.loversV2 = true;
   }
-  // 情人设定同步：card/voice/rules 跟随 LOVERS 新版本（保留聊天与用户数据）
+  // 情人设定同步：card/voice/rules 跟随 LOVERS 新版本；新增情人自动安装（删过的记入墓碑不再装）
   if (window.LOVERS_VER && (Number(DB.settings.loversVer) || 0) < window.LOVERS_VER) {
+    const removed = DB.settings.removedLovers || [];
     window.LOVERS.forEach(L => {
       if (!L || !L.name) return;
       const t = DB.personas.find(p => p.name === L.name);
-      if (!t) return;
+      if (!t) {
+        if (removed.includes(L.name)) return;
+        DB.personas.push({
+          id: 'p' + Date.now() + Math.floor(Math.random() * 1e6),
+          name: L.name,
+          nickname: L.nickname || L.name,
+          avatarColor: L.avatarColor || colorFor(L.name),
+          avatar: L.avatar || null,
+          base: [],
+          deepBg: false,
+          card: Object.assign({}, L.card || {}),
+          bio: [], memories: [], shared: [],
+          voice: L.voice ? JSON.parse(JSON.stringify(L.voice)) : null,
+          sched: L.sched ? JSON.parse(JSON.stringify(L.sched)) : [],
+          state: { off: 0 },
+          lastRead: 0,
+          rules: (L.rules || []).slice(),
+          prefs: [],
+          msgs: [],
+          createdAt: Date.now()
+        });
+        return;
+      }
       t.card = Object.assign({}, L.card || {});
       t.voice = L.voice ? JSON.parse(JSON.stringify(L.voice)) : t.voice;
       t.rules = (L.rules || []).slice();
@@ -1053,6 +1076,10 @@ function showPersonaPanel() {
   const b2 = el('button', 'rbtn', '删除 ' + p.name);
   b2.onclick = () => {
     if (confirm('彻底删除 ' + p.name + '？人设、记忆、聊天记录都会消失。')) {
+      if (window.LOVERS && window.LOVERS.some(L => L.name === p.name)) {
+        if (!DB.settings.removedLovers) DB.settings.removedLovers = [];
+        if (!DB.settings.removedLovers.includes(p.name)) DB.settings.removedLovers.push(p.name);
+      }
       DB.personas = DB.personas.filter(x => x.id !== p.id);
       save(); closePanel('panelPersona'); backHome();
     }
