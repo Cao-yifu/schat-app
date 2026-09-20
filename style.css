@@ -146,6 +146,8 @@ pre.code { background:#282828; color:#D8D8D8; border-radius:8px; padding:12px; f
 .bub .qq { background:rgba(0,0,0,0.06); border-left:3px solid rgba(0,0,0,0.18); border-radius:3px; padding:4px 8px; margin-bottom:5px; font-size:13.5px; color:#666; white-space:pre-wrap; word-break:break-word; }
 .msg.me .bub .qq { background:rgba(0,0,0,0.08); }
 .msg.sel .bub { outline:2px solid var(--green); outline-offset:2px; }
+/* 图片加载占位 */
+.bub .imgload { background:rgba(0,0,0,0.05); border-radius:8px; padding:14px 12px; margin-top:6px; font-size:13px; color:#8a8a8a; }
 
 /* Toast */
 #toast {
