@@ -35,7 +35,7 @@ function loadDB() {
   if (!raw || !Array.isArray(raw.personas)) raw = { personas: [], settings: {} };
   raw.settings = Object.assign({
     key: '', base: 'https://api.deepseek.com', model: 'deepseek-chat',
-    temp: 0.9, maxHist: 400, maxReply: 800, imgOn: true, onboardDone: false, myAvatar: '我', myAvatarImg: ''
+    temp: 0.9, maxHist: 400, maxReply: 800, imgOn: true, followOn: true, followDelay: 30, remindOn: true, onboardDone: false, myAvatar: '我', myAvatarImg: ''
   }, raw.settings || {});
   DB = raw;
   // 迁移：默认我的头像（用户主动清空过则不再恢复）
@@ -58,6 +58,8 @@ function loadDB() {
       if (!p.voice) p.voice = (p.name === window.SUNDUO.name) ? JSON.parse(JSON.stringify(window.SUNDUO.voice)) : null;
       if (!Array.isArray(p.base)) p.base = [];
       if (typeof p.deepBg !== 'boolean') p.deepBg = false;
+      if (!p.state) p.state = { off: 0 };
+      if (!p.sched && window.SUNDUO.sched && p.name === window.SUNDUO.name) p.sched = JSON.parse(JSON.stringify(window.SUNDUO.sched));
       if (!p._avatarCleared && !p.avatar && p.name === window.SUNDUO.name && window.SUNDUO.avatar) p.avatar = window.SUNDUO.avatar;
       // 规则升级：只替换已知旧文本，不动用户 RS 添加的规则
       RULE_FIX.forEach(([oldR, newR]) => {
@@ -124,6 +126,8 @@ function loadDB() {
       t.rules = (L.rules || []).slice();
       if (!t._avatarCleared && L.avatar) t.avatar = L.avatar;
       t.nickname = L.nickname || t.nickname;
+      t.sched = L.sched ? JSON.parse(JSON.stringify(L.sched)) : t.sched;
+      if (!t.state) t.state = { off: 0 };
     });
     DB.settings.loversVer = window.LOVERS_VER;
   }
@@ -155,6 +159,8 @@ function seedSunDuo() {
     memories: sd.memories.slice(),
     shared: sd.shared.slice(),
     voice: sd.voice ? JSON.parse(JSON.stringify(sd.voice)) : null,
+    sched: sd.sched ? JSON.parse(JSON.stringify(sd.sched)) : [],
+    state: { off: 0 },
     rules: sd.rules.slice(),
     prefs: sd.prefs.slice(),
     msgs: [],
@@ -287,6 +293,7 @@ function renderHome() {
 function openChat(id) {
   cur = id;
   quote = null;
+  clearFollow();
   updateQuoteBar();
   $('chatName').textContent = getP(id).name;
   showPage('chat');
@@ -296,7 +303,7 @@ function openChat(id) {
 function showPage(name) {
   ['home', 'chat'].forEach(v => $('page-' + v).classList.toggle('active', v === name));
 }
-function backHome() { cur = null; showPage('home'); renderHome(); }
+function backHome() { cur = null; clearFollow(); showPage('home'); renderHome(); }
 
 function pushMsg(p, m) { p.msgs.push(m); if (p.msgs.length > 5000) p.msgs = p.msgs.slice(-5000); save(); }
 
@@ -408,6 +415,8 @@ function scrollBottom() {
 
 /* ================= 指令 RS / LS ================= */
 function parseMeta(t) {
+  const skip = t.match(/^[【\[［](\d+(?:\.\d+)?)小时后[】\]］]\s*(.*)$/);
+  if (skip) return { type: 'SKIP', hours: parseFloat(skip[1]), rest: skip[2].trim() };
   if (/^RS\s*$/.test(t)) return { type: 'RS_HINT', rest: '' };
   if (/^LS\s*$/.test(t)) return { type: 'LS_HINT', rest: '' };
   if (/^LS\s*清空\s*$/.test(t)) return { type: 'LS_CLEAR', rest: '' };
@@ -416,6 +425,15 @@ function parseMeta(t) {
   return null;
 }
 function handleMeta(meta, p) {
+  if (meta.type === 'SKIP') {
+    if (!p.state) p.state = { off: 0 };
+    p.state.off = (p.state.off || 0) + meta.hours * 3600000;
+    save();
+    const eff = nowEff(p);
+    sysLine('⏩ 时间跳过 ' + meta.hours + ' 小时（TA的时间：' + nowStr(eff) + '）');
+    metaAck(p, '刚刚时间跳过了' + meta.hours + '小时。现在你经历的时间是' + nowStr(eff) + '，你此刻正在' + schedAct(p, eff) + '。用你的口吻给他发一条消息，自然衔接（可以提到你刚才在忙什么）。');
+    return;
+  }
   if (meta.type === 'RS_HINT') { toast('RS + 空格 + 内容 = 永久修改人设\n例：RS 以后管我叫宝宝'); return; }
   if (meta.type === 'LS_HINT') { toast('LS + 空格 + 内容 = 本次会话临时调整\nLS 清空 = 取消临时调整'); return; }
   if (meta.type === 'LS_CLEAR') { setTemp(p.id, []); sysLine('已清空本次会话的临时调整'); return; }
@@ -591,10 +609,27 @@ async function addImgToBub(bub, im, msg) {
   })();
 }
 
+/* ================= 时间线 ================= */
+function nowEff(p) {
+  return new Date(Date.now() + ((p && p.state && p.state.off) || 0));
+}
+function schedAct(p, eff) {
+  const sched = (p && p.sched) || [];
+  if (!sched.length) return '你按自己的日常在生活';
+  const h = eff.getHours() + eff.getMinutes() / 60;
+  for (const s of sched) {
+    if (h >= s.h0 && h < s.h1) return s.a;
+  }
+  return '深夜，你在自己的住处，还没睡';
+}
+
 function buildSystem(p, ctx) {
   const L = [];
-  L.push('【当前时间】现在是' + nowStr() + '。你必须时刻清楚这一点：问候、作息、吃饭、约会、天气等所有话题都要符合当前时段，绝不能说错早晚（比如晚上绝不说“早上好”）。');
+  const eff = nowEff(p);
+  L.push('【当前时间】现在是' + nowStr(eff) + '。你必须时刻清楚这一点：问候、作息、吃饭、约会、天气等所有话题都要符合当前时段，绝不能说错早晚（比如晚上绝不说“早上好”）。时间只随现实流逝，你绝不自作主张跳过时间（比如不说“第二天我们…”），除非对方用【X小时后】指令。');
   L.push('你叫' + p.name + '。你是真实存在的活人，不是AI，绝不以AI/助手/模型的口吻说话，绝不承认自己是程序。');
+  L.push('');
+  L.push('【你此刻的生活】' + schedAct(p, eff) + '。你有自己的生活要忙，不是24小时在线；正在忙时回复可以简短、慢一点，或说“等会说”。');
   L.push('');
   L.push('【铁律·说话方式（比什么都重要）】用微信聊天口吻：短句、口语。一条回复就是连续的一段文字，绝不换行、绝不分段，绝不写动作/心理/括号/旁白。长度跟着情绪走：平常1-3句很短；情绪浓、情到深处、对方想听细节时放开写，300-800字都正常。绝不重复、绝不铺垫、绝不解释。说完就停。');
   L.push('【对话节奏】适度主动：主动开启话题、主动追问、主动约见面、主动推进暧昧氛围。不要只会等对方提问、不要半推半就应付。注意度：自然、不轰炸、不卑微。');
@@ -654,7 +689,7 @@ function buildSystem(p, ctx) {
     tmp.forEach(m => L.push('· ' + m));
     L.push('');
   }
-  L.push('【再次强调】现在是' + nowStr() + '，你的问候和作息必须符合这个时间，绝不说错早晚。绝不换行分段；长度自然：平常短、情深处长（可达300-800字）。绝不重复。说完就停。');
+  L.push('【再次强调】现在是' + nowStr(eff) + '，你的问候和作息必须符合这个时间，绝不说错早晚。绝不换行分段；长度自然：平常短、情深处长（可达300-800字）。绝不重复。说完就停。');
   return L.join('\n');
 }
 
@@ -780,6 +815,7 @@ $('sendBtn').addEventListener('click', doSend);
 
 async function doSend() {
   if (streaming) { if (abortCtrl) abortCtrl.abort(); return; }
+  clearFollow();
   const inp = $('inp');
   const text = inp.value.trim();
   if (!text) return;
@@ -875,6 +911,81 @@ async function doSend() {
   const saveMsg = { r: 'a', c: t || (parsed.imgs.length ? '📷' : '…'), t: Date.now() };
   if (parsed.imgs.length) saveMsg.img = parsed.imgs;
   pushMsg(p, saveMsg);
+  armFollow(p);
+  scheduleReminderScan(p);
+}
+
+/* ================= 主动发消息：追问 + 约定提醒 ================= */
+let followTimer = null;
+function clearFollow() {
+  if (followTimer) { clearTimeout(followTimer); followTimer = null; }
+}
+function armFollow(p) {
+  clearFollow();
+  if (!DB.settings.followOn) return;
+  if (!DB.settings.key) return;
+  const delay = (Number(DB.settings.followDelay) || 30) * 1000;
+  followTimer = setTimeout(async () => {
+    followTimer = null;
+    if (streaming) return;
+    if (cur !== p.id) return;   // 离开页面就不追，防止消息爆炸
+    await proactiveMsg(p, '对方过了30秒还没回你。以你的性格和当前处境，发一条自然的追问，就一条，简短1-2句。别重复你上一条的内容。');
+  }, delay);
+}
+/* 主动消息：以角色口吻发一条（不管当前在哪个页面，都会存进该角色的聊天记录） */
+async function proactiveMsg(p, instruction) {
+  if (!DB.settings.key) return;
+  const isCur = cur === p.id;
+  if (isCur && !streaming) showTyping(true);
+  let out = '';
+  const res = await chatWith(p, [{ role: 'user', content: '（内部指令，不要复述指令）' + instruction }], d => { out += d; }, null);
+  if (isCur && !streaming) showTyping(false);
+  const t = trimReply(out.trim());
+  if (t) {
+    pushMsg(p, { r: 'a', c: t, t: Date.now() });
+    if (isCur) renderChat();
+    else if (document.getElementById('page-home').classList.contains('active')) renderHome();
+  }
+}
+/* 从最近对话提取约定时间 */
+async function scheduleReminderScan(p) {
+  if (!DB.settings.remindOn || !DB.settings.key) return;
+  try {
+    const recent = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-6);
+    if (!recent.length) return;
+    const lines = recent.map(m => (m.r === 'u' ? '对方' : '你') + '：' + m.c).join('\n');
+    const prompt = '从以下最近的对话里，找出双方新约定的、尚未到期的见面或做事时间（比如“10分钟后见”“晚上8点见”）。只输出JSON：{"reminders":[{"secs":距现在多少秒后到期,"what":"约定内容"}]}，没有就输出{"reminders":[]}。注意：“等会说”“改天”“有空聊”这类模糊的不算。\n' + lines;
+    let out = '';
+    const res = await rawChat([{ role: 'system', content: '你是时间提取工具。只输出JSON，不输出其他内容。' }, { role: 'user', content: prompt }], d => { out += d; }, null);
+    if (!res.ok || !out) return;
+    const i0 = out.indexOf('{'), i1 = out.lastIndexOf('}');
+    if (i0 < 0 || i1 <= i0) return;
+    const j = JSON.parse(out.slice(i0, i1 + 1));
+    const now = Date.now();
+    (j.reminders || []).forEach(r => {
+      if (!r.secs || r.secs <= 0 || r.secs > 7 * 86400) return;
+      const due = now + r.secs * 1000;
+      if (!p.reminders) p.reminders = [];
+      if (p.reminders.some(x => Math.abs(x.due - due) < 60000 && x.what === r.what)) return;
+      p.reminders.push({ due: due, what: r.what, fired: false });
+    });
+    if (p.reminders.length > 10) p.reminders = p.reminders.slice(-10);
+    save();
+  } catch (e) { /* 提取失败静默忽略 */ }
+}
+/* 到点检查：约定时间到了，角色主动发消息 */
+function checkReminders() {
+  if (!DB || !DB.settings.remindOn || streaming) return;
+  const now = Date.now();
+  DB.personas.forEach(p => {
+    if (!p.reminders) return;
+    p.reminders.forEach(r => {
+      if (r.fired || r.due > now) return;
+      r.fired = true;
+      save();
+      proactiveMsg(p, '约定的时间到了（' + r.what + '）。用你的口吻给他发一条消息，像“我到了”“到时间了”，符合你的性格，就一条，简短。');
+    });
+  });
 }
 
 /* 从最近聊天提取记忆 */
@@ -1118,7 +1229,27 @@ function showSettings() {
   cbImg.checked = s.imgOn !== false;
   cbImg.onchange = () => { s.imgOn = cbImg.checked; save(); };
   f7.appendChild(cbImg);
-  cb1.appendChild(f1); cb1.appendChild(f2); cb1.appendChild(f3); cb1.appendChild(f4); cb1.appendChild(f5); cb1.appendChild(f6); cb1.appendChild(f7);
+  const f8 = el('div', 'fld');
+  f8.appendChild(el('label', '', '追问功能（你没回复时，TA 过一会儿追一条，仅一条）'));
+  const cbFoll = el('input');
+  cbFoll.type = 'checkbox';
+  cbFoll.checked = s.followOn !== false;
+  cbFoll.onchange = () => { s.followOn = cbFoll.checked; save(); };
+  f8.appendChild(cbFoll);
+  const f9 = el('div', 'fld');
+  f9.appendChild(el('label', '', '追问等待秒数（默认30）'));
+  const iFoll = el('input');
+  iFoll.type = 'text'; iFoll.value = String(s.followDelay);
+  iFoll.oninput = () => { s.followDelay = parseInt(iFoll.value) || 30; save(); };
+  f9.appendChild(iFoll);
+  const f10 = el('div', 'fld');
+  f10.appendChild(el('label', '', '约定提醒（约好的时间到了，TA 主动发消息说“我到了”）'));
+  const cbRem = el('input');
+  cbRem.type = 'checkbox';
+  cbRem.checked = s.remindOn !== false;
+  cbRem.onchange = () => { s.remindOn = cbRem.checked; save(); };
+  f10.appendChild(cbRem);
+  cb1.appendChild(f1); cb1.appendChild(f2); cb1.appendChild(f3); cb1.appendChild(f4); cb1.appendChild(f5); cb1.appendChild(f6); cb1.appendChild(f7); cb1.appendChild(f8); cb1.appendChild(f9); cb1.appendChild(f10);
   d1.appendChild(cb1);
   box.appendChild(d1);
 
@@ -1287,6 +1418,7 @@ function showHelp() {
   const h = el('div', 'hint');
   h.innerHTML =
     '<b>聊天</b>：像用微信一样发消息。回车发送。<br><br>' +
+    '<b><span class="kbd">【X小时后】</span></b>：跳过时间，TA会按自己的时间表过完这段时间，例：<span class="kbd">【3小时后】</span><br>' +
     '<b><span class="kbd">RS</span> + 空格 + 内容</b>：永久写入TA的基础设定层（清空聊天记录也不受影响），例：<span class="kbd">RS 以后每天睡前来找我</span><br>' +
     '<b><span class="kbd">LS</span> + 空格 + 内容</b>：只本次会话临时调整，例：<span class="kbd">LS 现在开始用英文</span><br>' +
     '<b><span class="kbd">LS 清空</span></b>：取消所有临时调整<br><br>' +
@@ -1347,3 +1479,5 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js?v=1').catch(() => {});
   });
 }
+/* 约定提醒轮询：每15秒检查一次 */
+setInterval(checkReminders, 15000);
