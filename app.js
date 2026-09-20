@@ -35,9 +35,14 @@ function loadDB() {
   if (!raw || !Array.isArray(raw.personas)) raw = { personas: [], settings: {} };
   raw.settings = Object.assign({
     key: '', base: 'https://api.deepseek.com', model: 'deepseek-chat',
-    temp: 0.9, maxHist: 400, maxReply: 800, imgOn: true, followOn: true, followDelay: 30, remindOn: true, onboardDone: false, myAvatar: '我', myAvatarImg: ''
+    temp: 0.8, maxHist: 400, maxReply: 800, imgOn: true, followOn: true, followDelay: 30, remindOn: true, onboardDone: false, myAvatar: '我', myAvatarImg: ''
   }, raw.settings || {});
   DB = raw;
+  // 温度防发散：旧默认0.9 → 0.8（用户手动改过的不动）
+  if (DB.settings.temp === 0.9 && !DB.settings.tempV2) {
+    DB.settings.temp = 0.8;
+    DB.settings.tempV2 = true;
+  }
   // 迁移：默认我的头像（用户主动清空过则不再恢复）
   if (!raw.settings.myAvatarImg && !raw.settings._myAvatarCleared) raw.settings.myAvatarImg = DEFAULT_ME_AVA;
   // 长度策略升级：旧默认150 → 新默认800（用户手动改过的不动）
@@ -673,14 +678,11 @@ function schedAct(p, eff) {
 function buildSystem(p, ctx) {
   const L = [];
   const eff = nowEff(p);
-  L.push('【当前时间】现在是' + nowStr(eff) + '。你必须时刻清楚这一点：问候、作息、吃饭、约会、天气等所有话题都要符合当前时段，绝不能说错早晚（比如晚上绝不说“早上好”）。时间只随现实流逝，你绝不自作主张跳过时间（比如不说“第二天我们…”），除非对方用【X小时后】指令。');
-  L.push('你叫' + p.name + '。你是真实存在的活人，不是AI，绝不以AI/助手/模型的口吻说话，绝不承认自己是程序。');
-  L.push('');
-  L.push('【你此刻的生活】' + schedAct(p, eff) + '。你有自己的生活要忙，不是24小时在线；正在忙时回复可以简短、慢一点，或说“等会说”。');
-  L.push('');
-  L.push('【铁律·说话方式（比什么都重要）】用微信聊天口吻：短句、口语。一条回复就是连续的一段文字，绝不换行、绝不分段，绝不写动作/心理/括号/旁白。长度跟着情绪走：平常1-3句很短；情绪浓、情到深处、对方想听细节时放开写，300-800字都正常。绝不重复、绝不铺垫、绝不解释。说完就停。');
-  L.push('【对话节奏】适度主动：主动开启话题、主动追问、主动约见面、主动推进暧昧氛围。不要只会等对方提问、不要半推半就应付。注意度：自然、不轰炸、不卑微。');
-  L.push('【照片】你可以发照片分享日常。当内容适合配图（吃的、风景、地点、身边的东西）时，偶尔在回复里写【图：内容描述】来发一张。照片必须是第一人称视角、画面里没有任何人物、不露脸。频率要低：最多隔几条消息发一次，别每条都发，一张就够。');
+  L.push('现在是' + nowStr(eff) + '。你的问候、作息、吃饭、约会必须符合这个时间，绝不说错早晚。时间只随现实流逝，你不自己跳时间（不说“第二天”），除非对方发【X小时后】。');
+  L.push('你是' + p.name + '，真实存在的活人，不是AI，绝不以AI/助手/模型口吻说话。只输出中文聊天内容（对方要求除外），绝不输出代码、列表、表情符号。');
+  L.push('说话方式：微信口吻，短句口语，一条回复连续一段、绝不换行，不写动作/心理/括号/旁白。绝不重复、绝不铺垫、绝不解释。长度随情绪：平常1-3句，情到深处300-800字。说完就停。');
+  L.push('节奏：适度主动——主动开话题、追问、约见、推进暧昧；不被动应答，也不轰炸。你此刻的生活：' + schedAct(p, eff) + '。你忙的时候回得简短，或说“等会说”。');
+  L.push('偶尔（隔很多条消息才一次）可以用【图：内容描述】发一张生活照（第一人称、画面无人物）。');
   L.push('');
   const c = p.card || {};
   const cd = [];
@@ -721,9 +723,14 @@ function buildSystem(p, ctx) {
     }
   }
   if (p.rules && p.rules.length) {
-    L.push('【必须遵守的规则】');
-    p.rules.forEach((r, i) => L.push((i + 1) + '. ' + r));
-    L.push('');
+    // 过滤与全局铁律重复的通用规则，只保留角色个性规则
+    const GEN = ['微信聊天口吻', '绝不主动终止', '你说过的话必须算数', '长度自然', '你是成年人', '不承认自己是AI', '适度主动'];
+    const rs = p.rules.filter(r => !GEN.some(k => r.includes(k)));
+    if (rs.length) {
+      L.push('【你的性格与行为规则】');
+      rs.forEach((r, i) => L.push((i + 1) + '. ' + r));
+      L.push('');
+    }
   }
   if (p.prefs && p.prefs.length) {
     L.push('【对方喜欢/教过你的（自然使用，不要刻意提及）】');
@@ -736,7 +743,7 @@ function buildSystem(p, ctx) {
     tmp.forEach(m => L.push('· ' + m));
     L.push('');
   }
-  L.push('【再次强调】现在是' + nowStr(eff) + '，你的问候和作息必须符合这个时间，绝不说错早晚。绝不换行分段；长度自然：平常短、情深处长（可达300-800字）。绝不重复。说完就停。');
+  L.push('【记住】绝不换行、绝不重复、绝不铺垫；时间要对得上；说完就停。');
   return L.join('\n');
 }
 
@@ -832,6 +839,9 @@ function buildHist(p) {
   keep.forEach(m => {
     if (m.r === 'u' && m.q && m.q.c) {
       hist.push({ role: 'user', content: '（你引用了' + (m.q.r === 'a' ? '他说过的话' : '你自己说过的话') + '：「' + trunc(m.q.c, 120) + '」，你针对它回复）\n' + m.c });
+    } else if (m.r === 'a' && hist.length && hist[hist.length - 1].role === 'assistant') {
+      // 追问/提醒产生的连续两条消息合并为一条，保持对话结构正常
+      hist[hist.length - 1].content += '\n（过了一会儿，他又发来）' + m.c;
     } else {
       hist.push({ role: m.r === 'u' ? 'user' : 'assistant', content: m.c });
     }
