@@ -528,13 +528,20 @@ function apiUrl() { return DB.settings.base.replace(/\/+$/, '') + '/chat/complet
 function apiBody(messages, stream) {
   const cap = Number(DB.settings.maxReply);
   const maxTok = !cap ? 800 : Math.max(80, Math.min(800, Math.round(cap * 1.6)));
-  return {
+  const isMM = String(DB.settings.base).toLowerCase().includes('minimax');
+  const body = {
     model: DB.settings.model,
     messages: messages,
     stream: !!stream,
-    temperature: Number(DB.settings.temp) || 0.9,
-    max_tokens: maxTok
+    temperature: Number(DB.settings.temp) || 0.9
   };
+  if (isMM) {
+    body.max_completion_tokens = maxTok;
+    body.thinking = { type: 'disabled' };  // M3 默认深度思考，角色扮演要关
+  } else {
+    body.max_tokens = maxTok;
+  }
+  return body;
 }
 function errMsg(status) {
   if (status === 401) return 'API Key 无效。去 ＋ → 设置 检查 Key（platform.deepseek.com 创建）';
