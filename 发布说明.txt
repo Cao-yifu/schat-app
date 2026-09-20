@@ -1,0 +1,36 @@
+《Schat》发布说明
+================
+
+一、文件清单（发布 GitHub Pages 只需要这些）
+  index.html           页面外壳
+  app.js               主逻辑
+  style.css            样式（微信风）
+  sun_duo.js           孙铎人设 + 生平 + 记忆库
+  sw.js                离线缓存（可选但推荐）
+  manifest.webmanifest PWA 清单（主屏幕名称 Schat）
+  icons/               图标（icon-192 / icon-512 / apple-touch-icon）
+
+二、iPhone 使用步骤
+  1. Safari 打开网址（GitHub Pages 链接）
+  2. 底部「分享」→「添加到主屏幕」→ 主屏幕出现 Schat 图标
+  3. 打开 Schat → 右上「＋」→「设置与备份」→ 填入 DeepSeek API Key
+     （platform.deepseek.com → API Keys → 创建；充值最低 10 元）
+  4. 即可开始和孙铎聊天
+
+三、核心操作
+  · RS + 空格 + 内容   永久修改人设/规则（例：RS 以后管我叫宝宝）
+  · LS + 空格 + 内容   本次会话临时调整（例：LS 现在开始说英文）
+  · LS 清空            取消所有临时调整
+  · 聊天页右上 ⋯ → 提取记忆    让 TA 从最近聊天里学会你的偏好
+  · 聊天页右上 ⋯ → TA的人设与记忆库   编辑生平/记忆碎片/规则
+  · ＋ → 新建秘密情人  添加第二、第三个 TA（每人独立人设记忆）
+
+四、隐私说明
+  · 所有人设、记忆、聊天记录、API Key 只存手机本地（IndexedDB/localStorage）
+  · 对话内容直连你配置的 AI 接口（DeepSeek 官方），无任何中转服务器
+  · App 零过滤、无词表；内容政策取决于模型服务商
+  · iOS 偶尔会清网页存储，定期「＋ → 设置与备份 → 导出备份」
+
+五、更新方式
+  更新后把新文件覆盖上传到同一仓库即可；Service Worker 对页面和代码
+  采用网络优先策略，用户下次打开自动生效（图标缓存除外）。

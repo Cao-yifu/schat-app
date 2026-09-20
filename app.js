@@ -68,6 +68,7 @@ function toast(msg, ms) {
   t._tm = setTimeout(() => t.classList.remove('show'), ms || 2600);
 }
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 function fmtTime(ts) {
   const d = new Date(ts);
   return pad(d.getHours()) + ':' + pad(d.getMinutes());
@@ -247,6 +248,7 @@ function handleMeta(meta, p) {
 }
 async function metaAck(p, instruction) {
   showTyping(true);
+  await sleep(700 + Math.random() * 900);
   let out = '';
   const res = await chatWith(p, [{ role: 'user', content: '（内部指令，用你自己的口吻简短确认即可，1-2句，不要复述指令本身）' + instruction }], d => { out += d; }, null);
   showTyping(false);
@@ -415,12 +417,15 @@ async function doSend() {
   renderChat();
   streaming = true;
   abortCtrl = new AbortController();
+  let cancelled = false;
+  abortCtrl.signal.addEventListener('abort', () => { cancelled = true; });
   $('sendBtn').textContent = '停止';
   $('sendBtn').classList.add('stopping');
   showTyping(true);
-  await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
+  // 拟真「对方正在输入…」：思考时间随消息长度变化，有随机迟疑
+  const think = 900 + Math.min(text.length * 70, 2600) + Math.random() * 800;
+  await sleep(think);
 
-  let finalText = '';
   showTyping(false);
   const row = el('div', 'msg you');
   const ava = el('div', 'ava', (p.name || '?')[0]);
@@ -432,17 +437,35 @@ async function doSend() {
   $('chatScroll').appendChild(row);
   scrollBottom();
 
+  // 拟真打字节奏：按人类速度逐段显示，偶尔停下来"想一想"
+  const buf = [];
+  let doneFlag = false;
+  const flusher = (async () => {
+    while (!cancelled) {
+      if (buf.length === 0) {
+        if (doneFlag) break;
+        await sleep(40);
+        continue;
+      }
+      const n = 1 + Math.floor(Math.random() * 5);
+      bub.textContent += buf.splice(0, n).join('');
+      scrollBottom();
+      let delay = 50 + Math.random() * 85;
+      if (Math.random() < 0.07) delay += 350 + Math.random() * 800;
+      await sleep(delay);
+    }
+  })();
   const res = await chatWith(p, [{ role: 'user', content: text }], delta => {
-    bub.textContent += delta;
-    scrollBottom();
-  }, abortCtrl, false);
+    for (const ch of delta) buf.push(ch);
+  }, abortCtrl);
+  doneFlag = true;
+  await flusher;
 
   streaming = false;
   abortCtrl = null;
   $('sendBtn').textContent = '发送';
   $('sendBtn').classList.remove('stopping');
   if (!res.ok) {
-    if (!res.demo && finalText) { /* 流已中断且失败：保留已有内容 */ }
     bub.textContent = bub.textContent || res.error;
     toast(res.error);
     return;

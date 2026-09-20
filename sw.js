@@ -16,8 +16,11 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== self.location.origin) return; // API 等跨域请求放行
-  if (url.pathname.endsWith('index.html') || url.pathname === '/' || url.pathname.endsWith('/')) {
-    // HTML：网络优先，失败回缓存
+  const path = url.pathname;
+  const isDoc = path.endsWith('index.html') || path === '/' || path.endsWith('/');
+  const isAsset = /\.(js|css|webmanifest|png)$/.test(path);
+  if (isDoc || (isAsset && !/icons\//.test(path))) {
+    // 文档与代码资源：网络优先，失败回缓存（保证更新及时生效）
     e.respondWith(
       fetch(e.request).then(r => {
         const copy = r.clone();
