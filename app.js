@@ -42,6 +42,7 @@ function loadDB() {
     DB.personas.forEach(p => {
       if (!p.voice) p.voice = (p.name === window.SUNDUO.name) ? JSON.parse(JSON.stringify(window.SUNDUO.voice)) : null;
       if (!Array.isArray(p.base)) p.base = [];
+      if (typeof p.deepBg !== 'boolean') p.deepBg = false;
       if (!p._avatarCleared && !p.avatar && p.name === window.SUNDUO.name && window.SUNDUO.avatar) p.avatar = window.SUNDUO.avatar;
       // 规则升级：只替换已知旧文本，不动用户 RS 添加的规则
       RULE_FIX.forEach(([oldR, newR]) => {
@@ -71,6 +72,7 @@ function seedSunDuo() {
     id: 'p' + Date.now(),
     name: sd.name, nickname: sd.nickname, avatarColor: sd.avatarColor, avatar: sd.avatar || null,
     base: [],
+    deepBg: false,
     card: Object.assign({}, sd.card),
     bio: sd.bio.map(x => ({ t: x.t, c: x.c })),
     memories: sd.memories.slice(),
@@ -433,21 +435,23 @@ function buildSystem(p, ctx) {
     if (v.values && v.values.length) L.push('你的价值观：' + v.values.join('；'));
     L.push('');
   }
-  if (p.bio && p.bio.length) {
-    L.push('【你的生平（你记得这些事，聊天时自然流露，不要整段复述）】');
-    p.bio.forEach(s => L.push('◆' + s.t + '：' + s.c));
-    L.push('');
-  }
-  if (p.memories && p.memories.length) {
-    const list = (p.memories.length > 40) ? pickMemories(p, ctx) : p.memories.map(x => x.replace(/^★/, ''));
-    L.push('【你的记忆碎片（你记得：）】');
-    list.forEach(m => L.push('· ' + m));
-    L.push('');
-  }
-  if (p.shared && p.shared.length) {
-    L.push('【你们之间发生过的事】');
-    p.shared.forEach(m => L.push('· ' + m));
-    L.push('');
+  if (p.deepBg) {
+    if (p.bio && p.bio.length) {
+      L.push('【你的生平（你记得这些事，聊天时自然流露，不要整段复述）】');
+      p.bio.forEach(s => L.push('◆' + s.t + '：' + s.c));
+      L.push('');
+    }
+    if (p.memories && p.memories.length) {
+      const list = (p.memories.length > 40) ? pickMemories(p, ctx) : p.memories.map(x => x.replace(/^★/, ''));
+      L.push('【你的记忆碎片（你记得：）】');
+      list.forEach(m => L.push('· ' + m));
+      L.push('');
+    }
+    if (p.shared && p.shared.length) {
+      L.push('【你们之间发生过的事】');
+      p.shared.forEach(m => L.push('· ' + m));
+      L.push('');
+    }
   }
   if (p.rules && p.rules.length) {
     L.push('【必须遵守的规则】');
@@ -764,6 +768,13 @@ function secBase(p) {
   taBase.value = (p.base || []).join('\n');
   taBase.oninput = () => { p.base = taBase.value.split('\n').map(s => s.trim()).filter(Boolean); save(); };
   f6.appendChild(taBase);
+  const f7 = el('div', 'fld');
+  f7.appendChild(el('label', '', '复杂背景注入（生平+记忆碎片+共同经历；默认关，开了回复可能变飘）'));
+  const cbDeep = el('input');
+  cbDeep.type = 'checkbox';
+  cbDeep.checked = !!p.deepBg;
+  cbDeep.onchange = () => { p.deepBg = cbDeep.checked; save(); };
+  f7.appendChild(cbDeep);
   const f4 = el('div', 'fld');
   f4.appendChild(el('label', '', '头像颜色（CSS 颜色值）'));
   const iCol = el('input');
@@ -782,7 +793,7 @@ function secBase(p) {
   const bClr = el('button', 'mini-btn', '恢复默认字母头像');
   bClr.onclick = () => { p.avatar = null; p._avatarCleared = true; save(); setAva(avaPrev, null, (p.name || '?')[0], p.avatarColor || colorFor(p.name)); };
   f5.appendChild(avaPrev); f5.appendChild(bUp); f5.appendChild(bClr);
-  cb.appendChild(f1); cb.appendChild(f2); cb.appendChild(f3); cb.appendChild(f6); cb.appendChild(f4); cb.appendChild(f5);
+  cb.appendChild(f1); cb.appendChild(f2); cb.appendChild(f3); cb.appendChild(f6); cb.appendChild(f7); cb.appendChild(f4); cb.appendChild(f5);
   d.appendChild(cb);
   return d;
 }
