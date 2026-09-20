@@ -159,9 +159,12 @@ function loadDB() {
         });
         return;
       }
-      t.card = Object.assign({}, L.card || {});
-      t.voice = L.voice ? JSON.parse(JSON.stringify(L.voice)) : t.voice;
-      t.rules = (L.rules || []).slice();
+      // 用户在面板里手动改过 card/rules 的角色，不再被官方版静默覆盖
+      if (!t._userEdited) {
+        t.card = Object.assign({}, L.card || {});
+        t.voice = L.voice ? JSON.parse(JSON.stringify(L.voice)) : t.voice;
+        t.rules = (L.rules || []).slice();
+      }
       if (!t._avatarCleared && L.avatar) t.avatar = L.avatar;
       t.nickname = L.nickname || t.nickname;
       t.sched = L.sched ? JSON.parse(JSON.stringify(L.sched)) : t.sched;
@@ -1462,7 +1465,7 @@ function secBase(p) {
       if (i < 0) i = line.indexOf(':');
       if (i > 0) c[line.slice(0, i).trim()] = line.slice(i + 1).trim();
     });
-    p.card = c; save();
+    p.card = c; p._userEdited = true; save();
   };
   f3.appendChild(taCard);
   const f6 = el('div', 'fld');
@@ -1528,7 +1531,7 @@ function secList(p, title, arr, key, isBio) {
       } else {
         const ta = el('textarea');
         ta.value = item;
-        ta.oninput = () => { arr[idx] = ta.value; save(); };
+        ta.oninput = () => { arr[idx] = ta.value; if (key === 'rules') p._userEdited = true; save(); };
         row.appendChild(ta);
         const del = el('button', 'del', '×');
         del.onclick = () => { arr.splice(idx, 1); save(); render(); };
