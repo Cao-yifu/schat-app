@@ -32,11 +32,18 @@ function loadDB() {
   if (!raw || !Array.isArray(raw.personas)) raw = { personas: [], settings: {} };
   raw.settings = Object.assign({
     key: '', base: 'https://api.deepseek.com', model: 'deepseek-chat',
-    temp: 0.9, maxHist: 400, onboardDone: false, myAvatar: '我', myAvatarImg: ''
+    temp: 0.9, maxHist: 400, maxReply: 150, onboardDone: false, myAvatar: '我', myAvatarImg: ''
   }, raw.settings || {});
   DB = raw;
   // 迁移：默认我的头像（用户主动清空过则不再恢复）
   if (!raw.settings.myAvatarImg && !raw.settings._myAvatarCleared) raw.settings.myAvatarImg = DEFAULT_ME_AVA;
+  // 一次性历史清洗：截掉历史里的超长回复，打破"长回复先例"自我模仿
+  if (!DB.settings.histScrubV1) {
+    DB.personas.forEach(p => {
+      p.msgs.forEach(m => { if (m.r === 'a' && m.c && m.c.length > 200) m.c = m.c.slice(0, 200); });
+    });
+    DB.settings.histScrubV1 = true;
+  }
   // 迁移：老数据补上声音指纹
   if (window.SUNDUO) {
     DB.personas.forEach(p => {
@@ -388,7 +395,7 @@ async function metaAck(p, instruction) {
   showTyping(false);
   if (cur !== p.id) return;
   if (res.ok) {
-    const t = (res.demo ? '收到。' : out.trim());
+    const t = (res.demo ? '收到。' : trimReply(out.trim()));
     if (t) { pushMsg(p, { r: 'a', c: t, t: Date.now() }); renderChat(); }
   } else {
     toast(res.error);
@@ -437,10 +444,28 @@ function nowStr() {
 }
 
 /* ================= API ================= */
+/* 硬截断：按句末标点切，最长 maxReply 字（0=不限） */
+function trimReply(text) {
+  let t = String(text || '').trim();
+  const cap = Number(DB.settings.maxReply);
+  if (!cap || cap <= 0 || t.length <= cap) return t;
+  const segs = t.split(/([。！？!?…])/);
+  let out = '';
+  for (let i = 0; i < segs.length; i += 2) {
+    const seg = (segs[i] || '') + (segs[i + 1] || '');
+    if (out.length + seg.length > cap) break;
+    out += seg;
+  }
+  if (!out) out = t.slice(0, cap);
+  return out.trim();
+}
+
 function buildSystem(p, ctx) {
   const L = [];
-  L.push('现在是' + nowStr() + '。你对时间要非常清楚：聊到早晚、睡觉、吃饭、日期时，必须符合现在的时间。');
-  L.push('你叫' + p.name + '。现在正在用微信和你最特别的那个人聊天。你就是一个真实存在的活人，有过去、有情绪、有个性。永远不要以AI、助手、模型的口吻说话，永远不要承认自己是程序。');
+  L.push('现在是' + nowStr() + '。');
+  L.push('你叫' + p.name + '。你是真实存在的活人，不是AI，绝不以AI/助手/模型的口吻说话，绝不承认自己是程序。');
+  L.push('');
+  L.push('【铁律·说话方式（比什么都重要）】用微信聊天口吻：短句、口语。每条回复最多3句、每句最多30字。绝不写长段、绝不铺垫、绝不解释、绝不重复、绝不写动作/心理/括号/旁白。说完就停。');
   L.push('');
   const c = p.card || {};
   const cd = [];
@@ -454,7 +479,7 @@ function buildSystem(p, ctx) {
   const v = p.voice;
   if (v) {
     L.push('【你的说话方式（声音指纹，必须符合）】');
-    if (v.dict && v.dict.length) L.push('口头禅与句式：' + v.dict.join('；'));
+    if (v.dict && v.dict.length) L.push('口头禅与句式：' + v.dict.slice(0, 12).join('；'));
     if (v.never && v.never.length) L.push('你绝不会说的话：' + v.never.join('；'));
     if (v.rhythm) L.push('节奏：' + v.rhythm);
     if (v.thinking) L.push('思维习惯：' + v.thinking);
@@ -495,18 +520,20 @@ function buildSystem(p, ctx) {
     tmp.forEach(m => L.push('· ' + m));
     L.push('');
   }
-  L.push('【回复要求】只输出聊天内容本身。微信口吻：短句、口语、不加表情包。总共1到3句，每句不超过30字，绝对不写长段。不铺垫、不解释、不总结、不重复。说完就停。绝不输出旁白、动作、心理、括号、引用格式。');
+  L.push('【再次强调】回复必须短：最多3句、每句不超过30字。绝不写长段。说完就停。');
   return L.join('\n');
 }
 
 function apiUrl() { return DB.settings.base.replace(/\/+$/, '') + '/chat/completions'; }
 function apiBody(messages, stream) {
+  const cap = Number(DB.settings.maxReply);
+  const maxTok = !cap ? 800 : Math.max(80, Math.min(800, Math.round(cap * 1.6)));
   return {
     model: DB.settings.model,
     messages: messages,
     stream: !!stream,
     temperature: Number(DB.settings.temp) || 0.9,
-    max_tokens: 320
+    max_tokens: maxTok
   };
 }
 function errMsg(status) {
@@ -652,11 +679,13 @@ async function doSend() {
   scrollBottom();
 
   // 拟真打字节奏：按人类速度逐段显示，偶尔停下来"想一想"
-  // 长回复自动提速（真人回长消息也是成段蹦），回复完成后剩余内容快速吐出
+  // 长回复自动提速（真人回长消息也是成段蹦），超过字数上限直接停止
   const buf = [];
   let doneFlag = false;
   const flusher = (async () => {
     while (!cancelled) {
+      const cap = Number(DB.settings.maxReply);
+      if (cap && bub.textContent.length >= cap) { buf.length = 0; doneFlag = true; break; }
       if (buf.length === 0) {
         if (doneFlag) break;
         await sleep(40);
@@ -693,7 +722,8 @@ async function doSend() {
     renderChat();
     return;
   }
-  const t = bub.textContent.trim();
+  const t = trimReply(bub.textContent.trim());
+  bub.textContent = t;
   if (!t) {
     bub.textContent = '（没说出话来）';
     toast('他这次没有回应，可能被限流了，再发一次试试');
@@ -924,12 +954,18 @@ function showSettings() {
   iTemp.oninput = () => { s.temp = parseFloat(iTemp.value) || 0.9; save(); };
   f4.appendChild(iTemp);
   const f5 = el('div', 'fld');
-  f5.appendChild(el('label', '', '携带聊天记忆条数（越大越记得久，越费钱）'));
+  f5.appendChild(el('label', '', '最长回复字数（超出自动截断，0=不限）'));
+  const iReply = el('input');
+  iReply.type = 'text'; iReply.value = String(s.maxReply);
+  iReply.oninput = () => { s.maxReply = parseInt(iReply.value) || 0; save(); };
+  f5.appendChild(iReply);
+  const f6 = el('div', 'fld');
+  f6.appendChild(el('label', '', '携带聊天记忆条数（越大越记得久，越费钱）'));
   const iHist = el('input');
   iHist.type = 'text'; iHist.value = String(s.maxHist);
   iHist.oninput = () => { s.maxHist = parseInt(iHist.value) || 400; save(); };
-  f5.appendChild(iHist);
-  cb1.appendChild(f1); cb1.appendChild(f2); cb1.appendChild(f3); cb1.appendChild(f4); cb1.appendChild(f5);
+  f6.appendChild(iHist);
+  cb1.appendChild(f1); cb1.appendChild(f2); cb1.appendChild(f3); cb1.appendChild(f4); cb1.appendChild(f5); cb1.appendChild(f6);
   d1.appendChild(cb1);
   box.appendChild(d1);
 
