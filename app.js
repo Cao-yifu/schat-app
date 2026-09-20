@@ -678,7 +678,7 @@ function schedAct(p, eff) {
 function buildSystem(p, ctx) {
   const L = [];
   const eff = nowEff(p);
-  L.push('现在是' + nowStr(eff) + '。你的问候、作息、吃饭、约会必须符合这个时间，绝不说错早晚。时间只随现实流逝，你不自己跳时间（不说“第二天”），除非对方发【X小时后】。');
+  L.push('现在是' + nowStr(eff) + '。你的问候、作息、吃饭、约会必须符合这个时间，绝不说错早晚。时间只随现实流逝，你不自己跳时间（不说“第二天”），除非对方发【X小时后】。你承诺过的时间必须遵守：说了“20分钟就到”，这20分钟里你就还在路上；对方问到了没，按真实经过的时间回答。');
   L.push('你是' + p.name + '，真实存在的活人，不是AI，绝不以AI/助手/模型口吻说话。只输出中文聊天内容（对方要求除外），绝不输出代码、列表、表情符号。');
   L.push('说话方式：微信口吻，短句口语。回复一定要短：一般1-2句，最多3句；只有对方明确要你展开或写细节时，才允许写长，最多400字。一条回复连续一段、绝不换行，不写动作/心理/括号/旁白。绝不重复、绝不铺垫、绝不解释。说完就停。');
   L.push('节奏：适度主动——主动开话题、追问、约见、推进暧昧；不被动应答，也不轰炸。你此刻的生活：' + schedAct(p, eff) + '。你忙的时候回得简短，或说“等会说”。');
@@ -1004,6 +1004,20 @@ async function proactiveMsg(p, instruction) {
     else if (document.getElementById('page-home').classList.contains('active')) renderHome();
   }
 }
+/* 修正提醒秒数：以文字里的时长为准（“20分钟”→“1小时后”），不信模型的心算 */
+function fixReminderSecs(r) {
+  let secs = Number(r.secs);
+  const mDur = String(r.what || '').match(/(\d+(?:\.\d+)?)\s*(分钟|小时|秒)/);
+  if (mDur) {
+    const v = parseFloat(mDur[1]);
+    const unit = mDur[2];
+    secs = unit === '分钟' ? v * 60 : unit === '小时' ? v * 3600 : v;
+  }
+  if (!secs || secs <= 0 || secs > 7 * 86400) return null;
+  if (secs < 60 && !/秒/.test(String(r.what || ''))) return null;  // 异常小值（模型换算错）丢弃
+  return Math.round(secs);
+}
+
 /* 从最近对话提取约定时间 */
 async function scheduleReminderScan(p) {
   if (!DB.settings.remindOn || !DB.settings.key) return;
@@ -1011,7 +1025,7 @@ async function scheduleReminderScan(p) {
     const recent = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-6);
     if (!recent.length) return;
     const lines = recent.map(m => (m.r === 'u' ? '对方' : '你') + '：' + m.c).join('\n');
-    const prompt = '从以下最近的对话里，找出双方新约定的、尚未到期的见面或做事时间（比如“10分钟后见”“晚上8点见”）。只输出JSON：{"reminders":[{"secs":距现在多少秒后到期,"what":"约定内容"}]}，没有就输出{"reminders":[]}。注意：“等会说”“改天”“有空聊”这类模糊的不算。\n' + lines;
+    const prompt = '从以下最近的对话里，找出双方新约定的、尚未到期的见面或做事时间（比如“20分钟后见”“1小时后”“晚上8点见”）。只输出JSON：{"reminders":[{"secs":距现在多少秒后到期,"what":"约定内容，保留原文的时间表述"}]}，没有就输出{"reminders":[]}。注意：“等会说”“改天”“有空聊”这类模糊的不算；secs 必须精确换算（20分钟=1200秒、1小时=3600秒），算不准就输出-1。\n' + lines;
     let out = '';
     const res = await rawChat([{ role: 'system', content: '你是时间提取工具。只输出JSON，不输出其他内容。' }, { role: 'user', content: prompt }], d => { out += d; }, null);
     if (!res.ok || !out) return;
@@ -1020,8 +1034,10 @@ async function scheduleReminderScan(p) {
     const j = JSON.parse(out.slice(i0, i1 + 1));
     const now = Date.now();
     (j.reminders || []).forEach(r => {
-      if (!r.secs || r.secs <= 0 || r.secs > 7 * 86400) return;
-      const due = now + r.secs * 1000;
+      if (!r || !r.what) return;
+      const secs = fixReminderSecs(r);
+      if (!secs) return;
+      const due = now + secs * 1000;
       if (!p.reminders) p.reminders = [];
       if (p.reminders.some(x => Math.abs(x.due - due) < 60000 && x.what === r.what)) return;
       p.reminders.push({ due: due, what: r.what, fired: false });
