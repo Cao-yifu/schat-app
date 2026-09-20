@@ -22,7 +22,7 @@ function loadDB() {
   if (!raw || !Array.isArray(raw.personas)) raw = { personas: [], settings: {} };
   raw.settings = Object.assign({
     key: '', base: 'https://api.deepseek.com', model: 'deepseek-chat',
-    temp: 0.9, maxHist: 400, onboardDone: false, myAvatar: '我'
+    temp: 0.9, maxHist: 400, onboardDone: false, myAvatar: '我', myAvatarImg: ''
   }, raw.settings || {});
   DB = raw;
   // 迁移：老数据补上声音指纹
@@ -44,7 +44,7 @@ function seedSunDuo() {
   if (!sd) return;
   DB.personas.push({
     id: 'p' + Date.now(),
-    name: sd.name, nickname: sd.nickname, avatarColor: sd.avatarColor,
+    name: sd.name, nickname: sd.nickname, avatarColor: sd.avatarColor, avatar: null,
     card: Object.assign({}, sd.card),
     bio: sd.bio.map(x => ({ t: x.t, c: x.c })),
     memories: sd.memories.slice(),
@@ -99,6 +99,45 @@ function colorFor(name) {
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return AV_COLORS[h % AV_COLORS.length];
 }
+/* 头像渲染：有本地图片用图片，否则用彩色字母 */
+function setAva(node, img, initial, color) {
+  if (img) {
+    node.style.background = '';
+    node.style.backgroundImage = 'url(' + img + ')';
+    node.style.backgroundSize = 'cover';
+    node.style.backgroundPosition = 'center';
+    node.textContent = '';
+  } else {
+    node.style.backgroundImage = 'none';
+    node.style.background = color || '#888';
+    node.textContent = initial || '';
+  }
+}
+/* 从手机相册选图 → 压缩到 192px 的 dataURL */
+function pickImage(cb) {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.onchange = () => {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    const img = new Image();
+    const url = URL.createObjectURL(f);
+    img.onload = () => {
+      const max = 192;
+      const sc = Math.min(1, max / Math.max(img.width, img.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(img.width * sc));
+      cv.height = Math.max(1, Math.round(img.height * sc));
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      cb(cv.toDataURL('image/jpeg', 0.82));
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => cb(null);
+    img.src = url;
+  };
+  inp.click();
+}
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -127,8 +166,8 @@ function renderHome() {
   ps.forEach(p => {
     const lm = lastMsg(p);
     const row = el('div', 'row');
-    const ava = el('div', 'avatar', (p.name || '?')[0]);
-    ava.style.background = p.avatarColor || colorFor(p.name);
+    const ava = el('div', 'avatar');
+    setAva(ava, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
     const mid = el('div', 'mid');
     mid.appendChild(el('div', 'nm', p.name));
     mid.appendChild(el('div', 'pv', preview(lm.c, 26)));
@@ -183,8 +222,8 @@ function renderChat() {
     }
     const me = m.r === 'u';
     const row = el('div', 'msg ' + (me ? 'me' : 'you'));
-    const ava = el('div', 'ava', me ? DB.settings.myAvatar : (p.name || '?')[0]);
-    ava.style.background = me ? '#6B9F6E' : (p.avatarColor || colorFor(p.name));
+    const ava = el('div', 'ava');
+    setAva(ava, me ? DB.settings.myAvatarImg : p.avatar, me ? DB.settings.myAvatar : (p.name || '?')[0], me ? '#6B9F6E' : (p.avatarColor || colorFor(p.name)));
     const wrap = el('div', 'wrap');
     const bub = el('div', 'bub', m.c);
     wrap.appendChild(bub);
@@ -206,8 +245,8 @@ function showTyping(on) {
     const p = getPx();
     tg = el('div', 'msg you typing');
     tg.id = 'typingRow';
-    const ava = el('div', 'ava', (p.name || '?')[0]);
-    ava.style.background = p.avatarColor || colorFor(p.name);
+    const ava = el('div', 'ava');
+    setAva(ava, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
     const wrap = el('div', 'wrap');
     const bub = el('div', 'bub');
     const dots = el('span', 'dots');
@@ -255,7 +294,7 @@ function handleMeta(meta, p) {
 }
 async function metaAck(p, instruction) {
   showTyping(true);
-  await sleep(700 + Math.random() * 900);
+  await sleep(1400 + Math.random() * 1800);
   let out = '';
   const res = await chatWith(p, [{ role: 'user', content: '（内部指令，用你自己的口吻简短确认即可，1-2句，不要复述指令本身）' + instruction }], d => { out += d; }, null);
   showTyping(false);
@@ -393,7 +432,7 @@ async function demoStream(onDelta, abortPromise) {
   for (const ch of txt) {
     if (abortPromise && abortPromise.aborted) return;
     if (onDelta) onDelta(ch);
-    await new Promise(r => setTimeout(r, 18));
+    await new Promise(r => setTimeout(r, 40));
   }
 }
 
@@ -482,14 +521,14 @@ async function doSend() {
   $('sendBtn').textContent = '停止';
   $('sendBtn').classList.add('stopping');
   showTyping(true);
-  // 拟真「对方正在输入…」：思考时间随消息长度变化，有随机迟疑
-  const think = 900 + Math.min(text.length * 70, 2600) + Math.random() * 800;
+  // 拟真「对方正在输入…」：思考时间随消息长度变化，有随机迟疑（×2 减速版）
+  const think = 1800 + Math.min(text.length * 140, 5200) + Math.random() * 1600;
   await sleep(think);
 
   showTyping(false);
   const row = el('div', 'msg you');
-  const ava = el('div', 'ava', (p.name || '?')[0]);
-  ava.style.background = p.avatarColor || colorFor(p.name);
+  const ava = el('div', 'ava');
+  setAva(ava, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
   const wrap = el('div', 'wrap');
   const bub = el('div', 'bub', '');
   wrap.appendChild(bub);
@@ -507,11 +546,11 @@ async function doSend() {
         await sleep(40);
         continue;
       }
-      const n = 1 + Math.floor(Math.random() * 5);
+      const n = 1 + Math.floor(Math.random() * 3);
       bub.textContent += buf.splice(0, n).join('');
       scrollBottom();
-      let delay = 50 + Math.random() * 85;
-      if (Math.random() < 0.07) delay += 350 + Math.random() * 800;
+      let delay = 100 + Math.random() * 170;
+      if (Math.random() < 0.07) delay += 700 + Math.random() * 1600;
       await sleep(delay);
     }
   })();
@@ -638,7 +677,19 @@ function secBase(p) {
   iCol.type = 'text'; iCol.value = p.avatarColor || '';
   iCol.oninput = () => { p.avatarColor = iCol.value || colorFor(p.name); save(); };
   f4.appendChild(iCol);
-  cb.appendChild(f1); cb.appendChild(f2); cb.appendChild(f3); cb.appendChild(f4);
+  const f5 = el('div', 'fld');
+  f5.appendChild(el('label', '', '头像（从手机相册上传，仅存本地）'));
+  const avaPrev = el('div', 'avatar', '');
+  avaPrev.style.width = '64px'; avaPrev.style.height = '64px'; avaPrev.style.marginBottom = '8px';
+  setAva(avaPrev, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
+  const bUp = el('button', 'mini-btn', '📷 从相册选择');
+  bUp.onclick = () => pickImage(dataUrl => {
+    if (dataUrl) { p.avatar = dataUrl; save(); setAva(avaPrev, p.avatar, '', p.avatarColor || colorFor(p.name)); }
+  });
+  const bClr = el('button', 'mini-btn', '恢复默认字母头像');
+  bClr.onclick = () => { p.avatar = null; save(); setAva(avaPrev, null, (p.name || '?')[0], p.avatarColor || colorFor(p.name)); };
+  f5.appendChild(avaPrev); f5.appendChild(bUp); f5.appendChild(bClr);
+  cb.appendChild(f1); cb.appendChild(f2); cb.appendChild(f3); cb.appendChild(f4); cb.appendChild(f5);
   d.appendChild(cb);
   return d;
 }
@@ -695,6 +746,24 @@ function showSettings() {
   const s = DB.settings;
   const box = $('panelSettingsBody');
   box.innerHTML = '';
+  const d0 = el('details', 'sec');
+  d0.appendChild(el('summary', '', '外观'));
+  const cb0 = el('div', 'cb');
+  const f0 = el('div', 'fld');
+  f0.appendChild(el('label', '', '我的头像（从手机相册上传，仅存本地）'));
+  const avaMine = el('div', 'avatar', '');
+  avaMine.style.width = '64px'; avaMine.style.height = '64px'; avaMine.style.marginBottom = '8px';
+  setAva(avaMine, s.myAvatarImg, s.myAvatar, '#6B9F6E');
+  const bMup = el('button', 'mini-btn', '📷 从相册选择');
+  bMup.onclick = () => pickImage(dataUrl => {
+    if (dataUrl) { s.myAvatarImg = dataUrl; save(); setAva(avaMine, s.myAvatarImg, s.myAvatar, '#6B9F6E'); }
+  });
+  const bMclr = el('button', 'mini-btn', '恢复默认');
+  bMclr.onclick = () => { s.myAvatarImg = ''; save(); setAva(avaMine, null, s.myAvatar, '#6B9F6E'); };
+  f0.appendChild(avaMine); f0.appendChild(bMup); f0.appendChild(bMclr);
+  cb0.appendChild(f0);
+  d0.appendChild(cb0);
+  box.appendChild(d0);
   const d1 = el('details', 'sec');
   d1.open = true;
   d1.appendChild(el('summary', '', 'AI 接口（对话必需）'));
