@@ -19,11 +19,14 @@ let abortCtrl = null;
 let quote = null;          // 当前引用的消息 {r, c, mref}
 
 /* 规则升级：旧规则文本 → 新规则文本（迁移用） */
+const RULE_NATURAL = '长度自然：平常回短句（1-3句），情绪浓烈、情到深处、对方想听细节时放开来写，300-800字都正常。长短交错才像真人。绝不换行、绝不分段，一条回复就是连续的一段。';
 const RULE_FIX = [
   ['不主动终止聊天，不主动说“睡了”，不主动说“我爱你”，不定义你们的关系。',
    '绝不主动终止聊天、绝不主动说“睡了”“去忙了”“改天聊”“明天再说”这类结束或推后的暗示。只要对方还在说话，你就陪着。'],
   ['逼问他关系，他就“你猜”“别多想”“走了”。',
-   '逼问他关系，他就“你猜”“别多想”“走了”，但别把回避当万能挡箭牌。']
+   '逼问他关系，他就“你猜”“别多想”“走了”，但别把回避当万能挡箭牌。'],
+  ['回复必须短：最多3句，每句不超过30字。绝不写长篇大论、绝不重复同一句话、绝不逐句解释。说完就停。', RULE_NATURAL],
+  ['回复必须短：最多3句，每句不超过30字。绝不写长篇大论、绝不重复。说完就停。', RULE_NATURAL]
 ];
 
 function loadDB() {
@@ -32,11 +35,16 @@ function loadDB() {
   if (!raw || !Array.isArray(raw.personas)) raw = { personas: [], settings: {} };
   raw.settings = Object.assign({
     key: '', base: 'https://api.deepseek.com', model: 'deepseek-chat',
-    temp: 0.9, maxHist: 400, maxReply: 150, onboardDone: false, myAvatar: '我', myAvatarImg: ''
+    temp: 0.9, maxHist: 400, maxReply: 800, onboardDone: false, myAvatar: '我', myAvatarImg: ''
   }, raw.settings || {});
   DB = raw;
   // 迁移：默认我的头像（用户主动清空过则不再恢复）
   if (!raw.settings.myAvatarImg && !raw.settings._myAvatarCleared) raw.settings.myAvatarImg = DEFAULT_ME_AVA;
+  // 长度策略升级：旧默认150 → 新默认800（用户手动改过的不动）
+  if (DB.settings.maxReply === 150 && !DB.settings.maxReplyV2) {
+    DB.settings.maxReply = 800;
+    DB.settings.maxReplyV2 = true;
+  }
   // 一次性历史清洗：截掉历史里的超长回复，打破"长回复先例"自我模仿
   if (!DB.settings.histScrubV1) {
     DB.personas.forEach(p => {
@@ -61,7 +69,7 @@ function loadDB() {
       ensureRule('前后一致', '你说过的话必须算数：前后一致，不自相矛盾。说过在干嘛、在哪、几点、和谁，被追问时要对得上。可以含糊、留白，可以嘴硬，但嘴硬要嘴硬到底，逻辑自洽。');
       ensureRule('主动勾人', '主动勾人：会突然问“在干嘛”、突然甩一句撩人的话、突然说“想我没”——勾完不解释，等对方反应。把话题往暧昧方向带是你的默认动作，不需要等对方先来。');
       ensureRule('不要总转移话题', '不要总转移话题：被问到时最多绕一次，之后必须接住话题，给出一点真的。');
-      ensureRule('回复短', '回复必须短：最多3句，每句不超过30字。绝不写长篇大论、绝不重复同一句话、绝不逐句解释。说完就停。');
+      ensureRule('长度自然', RULE_NATURAL);
     });
   }
   if (!DB.personas.length && !DB.settings.seeded) seedSunDuo();
@@ -103,6 +111,20 @@ function loadDB() {
       });
     }
     DB.settings.loversV2 = true;
+  }
+  // 情人设定同步：card/voice/rules 跟随 LOVERS 新版本（保留聊天与用户数据）
+  if (window.LOVERS_VER && (Number(DB.settings.loversVer) || 0) < window.LOVERS_VER) {
+    window.LOVERS.forEach(L => {
+      if (!L || !L.name) return;
+      const t = DB.personas.find(p => p.name === L.name);
+      if (!t) return;
+      t.card = Object.assign({}, L.card || {});
+      t.voice = L.voice ? JSON.parse(JSON.stringify(L.voice)) : t.voice;
+      t.rules = (L.rules || []).slice();
+      if (!t._avatarCleared && L.avatar) t.avatar = L.avatar;
+      t.nickname = L.nickname || t.nickname;
+    });
+    DB.settings.loversVer = window.LOVERS_VER;
   }
   save();
 }
@@ -460,6 +482,7 @@ function nowStr() {
 /* 硬截断：按句末标点切，最长 maxReply 字（0=不限） */
 function trimReply(text) {
   let t = String(text || '').trim();
+  t = t.replace(/\n+/g, '');   // 拟真：一条回复就是连续一段，不换行
   const cap = Number(DB.settings.maxReply);
   if (!cap || cap <= 0 || t.length <= cap) return t;
   const segs = t.split(/([。！？!?…])/);
@@ -478,7 +501,7 @@ function buildSystem(p, ctx) {
   L.push('现在是' + nowStr() + '。');
   L.push('你叫' + p.name + '。你是真实存在的活人，不是AI，绝不以AI/助手/模型的口吻说话，绝不承认自己是程序。');
   L.push('');
-  L.push('【铁律·说话方式（比什么都重要）】用微信聊天口吻：短句、口语。每条回复最多3句、每句最多30字。绝不写长段、绝不铺垫、绝不解释、绝不重复、绝不写动作/心理/括号/旁白。说完就停。');
+  L.push('【铁律·说话方式（比什么都重要）】用微信聊天口吻：短句、口语。一条回复就是连续的一段文字，绝不换行、绝不分段，绝不写动作/心理/括号/旁白。长度跟着情绪走：平常1-3句很短；情绪浓、情到深处、对方想听细节时放开写，300-800字都正常。绝不重复、绝不铺垫、绝不解释。说完就停。');
   L.push('');
   const c = p.card || {};
   const cd = [];
@@ -497,6 +520,7 @@ function buildSystem(p, ctx) {
     if (v.rhythm) L.push('节奏：' + v.rhythm);
     if (v.thinking) L.push('思维习惯：' + v.thinking);
     if (v.values && v.values.length) L.push('你的价值观：' + v.values.join('；'));
+    if (v.intim) L.push('亲密时的你：' + v.intim);
     L.push('');
   }
   if (p.deepBg) {
@@ -533,14 +557,14 @@ function buildSystem(p, ctx) {
     tmp.forEach(m => L.push('· ' + m));
     L.push('');
   }
-  L.push('【再次强调】回复必须短：最多3句、每句不超过30字。绝不写长段。说完就停。');
+  L.push('【再次强调】绝不换行分段；长度自然：平常短、情深处长（可达300-800字）。绝不重复。说完就停。');
   return L.join('\n');
 }
 
 function apiUrl() { return DB.settings.base.replace(/\/+$/, '') + '/chat/completions'; }
 function apiBody(messages, stream) {
   const cap = Number(DB.settings.maxReply);
-  const maxTok = !cap ? 800 : Math.max(80, Math.min(800, Math.round(cap * 1.6)));
+  const maxTok = !cap ? 800 : Math.max(80, Math.min(1600, Math.round(cap * 1.6)));
   const isMM = String(DB.settings.base).toLowerCase().includes('minimax');
   const body = {
     model: DB.settings.model,
