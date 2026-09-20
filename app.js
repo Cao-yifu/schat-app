@@ -17,6 +17,7 @@ let cur = null;            // 当前情人 id
 let streaming = false;
 let abortCtrl = null;
 let quote = null;          // 当前引用的消息 {r, c, mref}
+let returnTab = null;      // 从详情页进聊天时，返回键回到哪个标签页
 
 /* 规则升级：旧规则文本 → 新规则文本（迁移用） */
 const RULE_NATURAL = '长度自然：平常回短句（1-3句），情绪浓烈、情到深处、对方想听细节时放开来写，300-800字都正常。长短交错才像真人。绝不换行、绝不分段，一条回复就是连续的一段。';
@@ -169,6 +170,31 @@ function loadDB() {
       DB.settings.loversVer = window.LOVERS_VER;
     }
   }
+  // 朋友圈动态：首次安装播种（每人种 2 条，留 1 条给"以后自动发"）
+  if (window.MOMENTS && !DB.settings.momentsV1) {
+    DB.moments = [];
+    const base = Date.now();
+    window.MOMENTS.forEach(L => {
+      const p = DB.personas.find(x => x.name === L.name);
+      if (!p) return;
+      (L.posts || []).slice(0, 2).forEach((po, i) => {
+        const hours = (i === 0 ? 2.5 : 26) + Math.random() * 3;
+        DB.moments.push({
+          id: 'm' + Date.now() + Math.floor(Math.random() * 1e6),
+          pid: p.id, text: po.text,
+          t: base - hours * 3600000,
+          likes: (po.likes || []).slice(),
+          comments: (po.comments || []).map(c => ({ who: c.who, text: c.text })),
+          liked: false
+        });
+      });
+    });
+    DB.moments.sort((a, b) => a.t - b.t);
+    DB.settings.momentsUsed = {};
+    window.MOMENTS.forEach(L => { DB.settings.momentsUsed[L.name] = 2; });
+    DB.settings.momentsV1 = true;
+  }
+  autoMoment();
   save();
 }
 function save() {
@@ -333,9 +359,171 @@ function renderHome() {
   });
 }
 
+/* ================= 角色（资料介绍区） ================= */
+const KEY_LABELS = { age: '年龄', birthday: '生日', sign: '星座', hometown: '籍贯', resident: '现居', job: '职业', height: '身高', build: '体型', face: '长相', hair: '头发', hands: '手', style: '穿衣风格', voice: '声音', 年龄: '年龄', 身份: '身份', 外貌: '外貌', 性格: '性格', 与你的关系: '与你的关系', 细节: '细节', 生日: '生日', 籍贯: '籍贯', 现居: '现居', 职业: '职业', 身高: '身高', 其他: '其他' };
+function cardLine(p) {
+  const c = p.card || {};
+  return c['身份'] || c['职业'] || c['job'] || c['性格'] || '';
+}
+function fmtH(h) {
+  const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
+  return pad(hh) + ':' + (mm ? pad(mm) : '00');
+}
+function fmtDateCn(ts) {
+  const d = new Date(ts);
+  return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+}
+function kvRow(k, v) {
+  const r = el('div', 'kvrow');
+  r.appendChild(el('div', 'k', k));
+  r.appendChild(el('div', 'v', v));
+  return r;
+}
+function renderRoles() {
+  const list = $('rolesList');
+  list.innerHTML = '';
+  if (!DB.personas.length) {
+    list.innerHTML = '<div class="empty"><div class="big">🖤</div>还没有角色</div>';
+    return;
+  }
+  DB.personas.forEach(p => {
+    const row = el('div', 'row');
+    const ava = el('div', 'avatar');
+    setAva(ava, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
+    const mid = el('div', 'mid');
+    mid.appendChild(el('div', 'nm', p.name));
+    const one = cardLine(p);
+    if (one) mid.appendChild(el('div', 'pv', preview(one, 28)));
+    row.appendChild(ava); row.appendChild(mid);
+    row.onclick = () => openRoleDetail(p.id);
+    list.appendChild(row);
+  });
+}
+function openRoleDetail(id) {
+  const p = getP(id);
+  if (!p) return;
+  $('roleName').textContent = p.name;
+  showPage('roleDetail');
+  const box = $('roleBody');
+  box.innerHTML = '';
+  /* 头像卡 */
+  const prof = el('div', 'profile');
+  const bava = el('div', 'bava');
+  setAva(bava, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
+  prof.appendChild(bava);
+  prof.appendChild(el('div', 'pname', p.name));
+  const tag = cardLine(p);
+  if (tag) prof.appendChild(el('div', 'pid2', tag));
+  if (p.nickname && p.nickname !== p.name) prof.appendChild(el('div', 'pid2', '称呼：' + p.nickname));
+  const btns = el('div', 'btns');
+  const bChat = el('button', 'gbtn', '发消息');
+  bChat.onclick = () => openChat(p.id, 'roles');
+  const bEdit = el('button', 'gbtn ghost', '编辑人设');
+  bEdit.onclick = () => { cur = p.id; showPersonaPanel(); };
+  btns.appendChild(bChat); btns.appendChild(bEdit);
+  prof.appendChild(btns);
+  box.appendChild(prof);
+  /* 基础信息 */
+  const c = p.card || {};
+  const keys = Object.keys(c).filter(k => c[k]);
+  if (keys.length) {
+    const d = el('details', 'sec');
+    d.open = true;
+    d.appendChild(el('summary', '', '基础信息'));
+    const cb = el('div', 'cb');
+    keys.forEach(k => cb.appendChild(kvRow(KEY_LABELS[k] || k, String(c[k]))));
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 日常作息 */
+  if (p.sched && p.sched.length) {
+    const d = el('details', 'sec');
+    d.appendChild(el('summary', '', '日常作息'));
+    const cb = el('div', 'cb');
+    p.sched.forEach(s => cb.appendChild(kvRow(fmtH(s.h0) + '–' + fmtH(s.h1), s.a)));
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 声音指纹 */
+  if (p.voice) {
+    const v = p.voice;
+    const d = el('details', 'sec');
+    d.appendChild(el('summary', '', '声音指纹'));
+    const cb = el('div', 'cb');
+    if (v.dict && v.dict.length) {
+      cb.appendChild(el('div', 'subt', '口头禅'));
+      const chips = el('div', 'chips');
+      v.dict.slice(0, 12).forEach(w => chips.appendChild(el('span', 'chip', w)));
+      cb.appendChild(chips);
+    }
+    if (v.never && v.never.length) {
+      cb.appendChild(el('div', 'subt', '绝不会说的话'));
+      v.never.forEach(w => cb.appendChild(el('div', 'lirow', '· ' + w)));
+    }
+    if (v.rhythm) { cb.appendChild(el('div', 'subt', '说话节奏')); cb.appendChild(el('div', 'lirow', v.rhythm)); }
+    if (v.thinking) { cb.appendChild(el('div', 'subt', '思维习惯')); cb.appendChild(el('div', 'lirow', v.thinking)); }
+    if (v.values && v.values.length) {
+      cb.appendChild(el('div', 'subt', '价值观'));
+      v.values.forEach(w => cb.appendChild(el('div', 'lirow', '· ' + w)));
+    }
+    if (v.intim) { cb.appendChild(el('div', 'subt', '亲密时的TA')); cb.appendChild(el('div', 'lirow', v.intim)); }
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 生平 */
+  if (p.bio && p.bio.length) {
+    const d = el('details', 'sec');
+    d.appendChild(el('summary', '', '生平（' + p.bio.length + '）'));
+    const cb = el('div', 'cb');
+    p.bio.forEach(s => {
+      if (s.t) cb.appendChild(el('div', 'biochapter', '◆ ' + s.t));
+      if (s.c) cb.appendChild(el('div', 'lirow', s.c));
+    });
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 记忆碎片 */
+  if (p.memories && p.memories.length) {
+    const d = el('details', 'sec');
+    d.appendChild(el('summary', '', '记忆碎片（' + p.memories.length + '）'));
+    const cb = el('div', 'cb');
+    p.memories.forEach(m => cb.appendChild(el('div', 'lirow', '· ' + String(m).replace(/^★/, ''))));
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 共同经历 */
+  if (p.shared && p.shared.length) {
+    const d = el('details', 'sec');
+    d.appendChild(el('summary', '', '共同经历（' + p.shared.length + '）'));
+    const cb = el('div', 'cb');
+    p.shared.forEach(m => cb.appendChild(el('div', 'lirow', '· ' + m)));
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 对话规则 */
+  if (p.rules && p.rules.length) {
+    const d = el('details', 'sec');
+    d.appendChild(el('summary', '', '对话规则（' + p.rules.length + '）'));
+    const cb = el('div', 'cb');
+    p.rules.forEach(m => cb.appendChild(el('div', 'lirow', '· ' + m)));
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 相处数据 */
+  const d2 = el('details', 'sec');
+  d2.appendChild(el('summary', '', '相处数据'));
+  const cb2 = el('div', 'cb');
+  const msgN = (p.msgs || []).filter(m => m.r === 'u' || m.r === 'a').length;
+  cb2.appendChild(kvRow('消息数', msgN + ' 条'));
+  cb2.appendChild(kvRow('认识于', fmtDateCn(p.createdAt || Date.now())));
+  d2.appendChild(cb2);
+  box.appendChild(d2);
+}
+
 /* ================= 聊天 ================= */
-function openChat(id) {
+function openChat(id, ret) {
   cur = id;
+  returnTab = ret || null;
   quote = null;
   clearFollow();
   updateQuoteBar();
@@ -348,9 +536,20 @@ function openChat(id) {
   $('inp').focus();
 }
 function showPage(name) {
-  ['home', 'chat'].forEach(v => $('page-' + v).classList.toggle('active', v === name));
+  ['home', 'chat', 'roles', 'roleDetail', 'moments', 'set'].forEach(v => $('page-' + v).classList.toggle('active', v === name));
+  const isTab = ['home', 'roles', 'moments', 'set'].indexOf(name) >= 0;
+  $('tabbar').classList.toggle('show', isTab);
+  if (isTab) updateTabs(name);
 }
-function backHome() { cur = null; clearFollow(); showPage('home'); renderHome(); }
+function updateTabs(active) {
+  document.querySelectorAll('#tabbar .tab').forEach(t => t.classList.toggle('on', t.dataset.tab === active));
+  let n = 0;
+  DB.personas.forEach(p => { if (p.msgs.some(m => m.r === 'a' && m.t > (p.lastRead || 0))) n++; });
+  const b = $('tabUnread');
+  if (n) { b.textContent = n > 99 ? '99+' : n; b.style.display = 'flex'; }
+  else { b.textContent = ''; b.style.display = 'none'; }
+}
+function backHome() { cur = null; clearFollow(); showPage(returnTab || 'home'); returnTab = null; renderHome(); }
 
 function pushMsg(p, m) {
   p.msgs.push(m);
@@ -767,7 +966,7 @@ function apiBody(messages, stream) {
   return body;
 }
 function errMsg(status) {
-  if (status === 401) return 'API Key 无效。去 ＋ → 设置 检查 Key（platform.deepseek.com 创建）';
+  if (status === 401) return 'API Key 无效。去底部「设置」页检查 Key（platform.deepseek.com 创建）';
   if (status === 402) return '余额不足。去 platform.deepseek.com 充值（最低10元）';
   if (status === 403) return '无权限访问该模型/接口';
   if (status === 429) return '请求太频繁，稍等几秒再发';
@@ -777,7 +976,7 @@ function errMsg(status) {
 /* 演示模式（未填 Key 时走这个，方便先看界面效果） */
 const DEMO_LINES = [
   '（演示模式）我还没被真正唤醒哦。',
-  '去 ＋ → 设置 里填上你的 API Key，我就能真的用孙铎的脑子跟你说话了。'
+  '去底部「设置」页填上你的 API Key，我就能真的用孙铎的脑子跟你说话了。'
 ];
 async function demoStream(onDelta, abortPromise) {
   const txt = DEMO_LINES.join('\n');
@@ -1064,7 +1263,7 @@ function checkReminders() {
 /* 从最近聊天提取记忆 */
 async function extractMemory() {
   const p = getPx();
-  if (!DB.settings.key) { toast('需要先配置 API Key（＋ → 设置）'); return; }
+  if (!DB.settings.key) { toast('需要先配置 API Key（底部「设置」页）'); return; }
   const recent = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-30);
   if (!recent.length) { toast('还没有可提取的聊天记录'); return; }
   toast('正在提取记忆…', 3000);
@@ -1087,6 +1286,120 @@ async function extractMemory() {
   } catch (e) {
     toast('模型返回格式不标准，请重试一次');
   }
+}
+
+/* ================= 朋友圈 ================= */
+function fmtAgo(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+  if (diff < 172800000) return '昨天';
+  const d = new Date(ts);
+  return (d.getMonth() + 1) + '月' + d.getDate() + '日';
+}
+function renderMoments() {
+  const box = $('momentsList');
+  box.innerHTML = '';
+  if (!DB.moments || !DB.moments.length) {
+    box.innerHTML = '<div class="empty"><div class="big">🫧</div>TA们还没有发过动态</div>';
+    return;
+  }
+  DB.moments.slice().sort((a, b) => b.t - a.t).forEach(m => {
+    const p = DB.personas.find(x => x.id === m.pid);
+    const post = el('div', 'mpost');
+    const hd = el('div', 'mhd');
+    const ava = el('div', 'mava');
+    setAva(ava, p ? p.avatar : null, p ? (p.name || '?')[0] : '?', p ? (p.avatarColor || colorFor(p.name)) : '#888');
+    const nm = el('div', 'mnm', p ? p.name : 'TA');
+    const tme = el('div', 'mtime', fmtAgo(m.t));
+    tme.style.marginLeft = 'auto';
+    hd.appendChild(ava); hd.appendChild(nm); hd.appendChild(tme);
+    post.appendChild(hd);
+    post.appendChild(el('div', 'mtxt', m.text));
+    const mbar = el('div', 'mbar');
+    const lk = el('div', 'act' + (m.liked ? ' liked' : ''));
+    lk.appendChild(el('span', '', m.liked ? '♥' : '♡'));
+    lk.appendChild(el('span', '', m.liked ? '取消' : '赞'));
+    lk.onclick = () => toggleLike(m);
+    const cm = el('div', 'act');
+    cm.appendChild(el('span', '', '💬'));
+    cm.appendChild(el('span', '', '评论'));
+    cm.onclick = () => { const ip = post.querySelector('.cmtinput'); if (ip) ip.classList.toggle('show'); };
+    mbar.appendChild(lk); mbar.appendChild(cm);
+    post.appendChild(mbar);
+    const likeNames = m.liked ? (m.likes || []).concat(['我']) : (m.likes || []);
+    if (likeNames.length || (m.comments || []).length) {
+      const foot = el('div', 'mfoot');
+      const likeLine = el('div', 'likeline');
+      if (likeNames.length) {
+        likeLine.classList.add('show');
+        const h = el('span', 'lk', '♥');
+        h.onclick = () => toggleLike(m);
+        likeLine.appendChild(h);
+        likeLine.appendChild(el('span', '', likeNames.join('、')));
+      }
+      foot.appendChild(likeLine);
+      (m.comments || []).forEach(c => {
+        const cl = el('div', 'cmt');
+        cl.appendChild(el('b', '', c.who));
+        cl.appendChild(document.createTextNode(c.text));
+        foot.appendChild(cl);
+      });
+      post.appendChild(foot);
+    }
+    const ip = el('div', 'cmtinput');
+    const ipt = el('input');
+    ipt.type = 'text';
+    ipt.placeholder = '评论…';
+    const sbtn = el('button', '', '发送');
+    const send = () => {
+      const t = ipt.value.trim();
+      if (!t) return;
+      m.comments = m.comments || [];
+      m.comments.push({ who: '我', text: t });
+      save();
+      renderMoments();
+    };
+    sbtn.onclick = send;
+    ipt.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+    ip.appendChild(ipt); ip.appendChild(sbtn);
+    post.appendChild(ip);
+    box.appendChild(post);
+  });
+}
+function toggleLike(m) {
+  m.liked = !m.liked;
+  save();
+  renderMoments();
+}
+/* 动态池没发完的，过一段时间自动补一条（约 4 小时一条） */
+function autoMoment() {
+  if (!window.MOMENTS || !DB.moments) return;
+  const used = DB.settings.momentsUsed || {};
+  const lastT = DB.moments.length ? Math.max.apply(null, DB.moments.map(x => x.t)) : 0;
+  if (Date.now() - lastT < 4 * 3600000) return;
+  const cands = [];
+  window.MOMENTS.forEach(L => {
+    const p = DB.personas.find(x => x.name === L.name);
+    if (!p || !L.posts) return;
+    const u = used[L.name] || 0;
+    if (u < L.posts.length) cands.push({ p: p, po: L.posts[u], name: L.name });
+  });
+  if (!cands.length) return;
+  const c = cands[Math.floor(Math.random() * cands.length)];
+  used[c.name] = (used[c.name] || 0) + 1;
+  DB.moments.push({
+    id: 'm' + Date.now() + Math.floor(Math.random() * 1e6),
+    pid: c.p.id,
+    text: c.po.text,
+    t: Date.now() - (10 + Math.floor(Math.random() * 120)) * 60000,
+    likes: (c.po.likes || []).slice(),
+    comments: (c.po.comments || []).map(x => ({ who: x.who, text: x.text })),
+    liked: false
+  });
+  DB.settings.momentsUsed = used;
+  save();
 }
 
 /* ================= 面板：人设 ================= */
@@ -1236,9 +1549,8 @@ function secList(p, title, arr, key, isBio) {
 }
 
 /* ================= 面板：设置 / 帮助 ================= */
-function showSettings() {
+function fillSettings(box) {
   const s = DB.settings;
-  const box = $('panelSettingsBody');
   box.innerHTML = '';
   const d0 = el('details', 'sec');
   d0.appendChild(el('summary', '', '外观'));
@@ -1354,8 +1666,8 @@ function showSettings() {
     '· 换手机或清缓存前，记得导出备份。'));
   d3.appendChild(cb3);
   box.appendChild(d3);
-  showPanel('panelSettings');
 }
+function showSettings() { fillSettings($('panelSettingsBody')); showPanel('panelSettings'); }
 function exportAll() {
   const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -1407,7 +1719,7 @@ function showAdd() {
   f2.appendChild(ta);
   const bGen = el('button', 'gbtn', '✨ AI 自动补全生平（推荐，需要 API Key）');
   bGen.onclick = async () => {
-    if (!DB.settings.key) { toast('需要先配置 API Key（＋ → 设置）'); return; }
+    if (!DB.settings.key) { toast('需要先配置 API Key（底部「设置」页）'); return; }
     const name = iName.value.trim() || '他';
     const base = ta.value.trim();
     if (!base) { toast('先写下他的基础人设'); return; }
@@ -1495,13 +1807,15 @@ function showHelp() {
   const h = el('div', 'hint');
   h.innerHTML =
     '<b>聊天</b>：像用微信一样发消息。回车发送。<br><br>' +
+    '<b>角色</b>：底部「角色」页，每个 TA 的完整资料介绍（人设、作息、声音、记忆），点进去可发消息或编辑。<br><br>' +
+    '<b>朋友圈</b>：底部「朋友圈」页，TA 们会不定期发动态，你可以点赞、评论。<br><br>' +
     '<b><span class="kbd">【X小时后】</span></b>：跳过时间，TA会按自己的时间表过完这段时间，例：<span class="kbd">【3小时后】</span><br>' +
     '<b><span class="kbd">RS</span> + 空格 + 内容</b>：永久写入TA的基础设定层（清空聊天记录也不受影响），例：<span class="kbd">RS 以后每天睡前来找我</span><br>' +
     '<b><span class="kbd">LS</span> + 空格 + 内容</b>：只本次会话临时调整，例：<span class="kbd">LS 现在开始用英文</span><br>' +
     '<b><span class="kbd">LS 清空</span></b>：取消所有临时调整<br><br>' +
     '<b>提取记忆</b>：聊天页右上 ⋯ → 提取记忆，TA 会把最近聊的内容里该记住的（你的喜好、称呼、秘密）写进长期记忆。<br><br>' +
     '<b>添加主屏幕</b>：iPhone Safari 打开 → 分享按钮 → 添加到主屏幕，之后就像原生 App 一样打开。<br><br>' +
-    '<b>备份</b>：＋ → 设置 → 导出备份。';
+    '<b>备份</b>：底部「设置」页 → 备份 → 导出。';
   cb.appendChild(h);
   d.appendChild(cb);
   box.appendChild(d);
@@ -1510,6 +1824,17 @@ function showHelp() {
 
 /* ================= 事件绑定 ================= */
 function bind() {
+  document.querySelectorAll('#tabbar .tab').forEach(t => {
+    t.onclick = () => {
+      const name = t.dataset.tab;
+      showPage(name);
+      if (name === 'home') renderHome();
+      if (name === 'roles') renderRoles();
+      if (name === 'moments') { autoMoment(); renderMoments(); }
+      if (name === 'set') fillSettings($('pageSetBody'));
+    };
+  });
+  $('roleBackBtn').onclick = () => { showPage('roles'); renderRoles(); };
   $('homeAddBtn').onclick = () => showSheet('sheetPlus');
   $('chatMenuBtn').onclick = () => showSheet('sheetChat');
   $('chatBackBtn').onclick = backHome;
@@ -1542,13 +1867,14 @@ function maybeOnboard() {
     DB.settings.onboardDone = true;
     save();
     $('onboard').classList.remove('show');
-    toast('先加主屏幕，再去 ＋ → 设置 填 API Key');
+    toast('先加主屏幕，再去底部「设置」页填 API Key');
   };
 }
 
 /* ================= 启动 ================= */
 loadDB();
 renderHome();
+updateTabs('home');
 bind();
 maybeOnboard();
 if ('serviceWorker' in navigator) {
