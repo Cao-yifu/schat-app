@@ -35,7 +35,7 @@ function loadDB() {
   if (!raw || !Array.isArray(raw.personas)) raw = { personas: [], settings: {} };
   raw.settings = Object.assign({
     key: '', base: 'https://api.deepseek.com', model: 'deepseek-chat',
-    temp: 0.8, maxHist: 400, maxReply: 800, imgOn: true, followOn: true, followDelay: 30, remindOn: true, onboardDone: false, myAvatar: '我', myAvatarImg: ''
+    temp: 0.8, maxHist: 400, maxReply: 150, imgOn: true, followOn: true, followDelay: 30, remindOn: true, onboardDone: false, myAvatar: '我', myAvatarImg: ''
   }, raw.settings || {});
   DB = raw;
   // 温度防发散：旧默认0.9 → 0.8（用户手动改过的不动）
@@ -45,10 +45,10 @@ function loadDB() {
   }
   // 迁移：默认我的头像（用户主动清空过则不再恢复）
   if (!raw.settings.myAvatarImg && !raw.settings._myAvatarCleared) raw.settings.myAvatarImg = DEFAULT_ME_AVA;
-  // 长度策略升级：旧默认150 → 新默认800（用户手动改过的不动）
-  if (DB.settings.maxReply === 150 && !DB.settings.maxReplyV2) {
-    DB.settings.maxReply = 800;
-    DB.settings.maxReplyV2 = true;
+  // 长度策略：默认收紧为150（旧值800自动降回；用户以后想放宽可在设置里改）
+  if (!DB.settings.maxReplyV3) {
+    DB.settings.maxReply = Math.min(Number(DB.settings.maxReply) || 150, 150);
+    DB.settings.maxReplyV3 = true;
   }
   // 一次性历史清洗：截掉历史里的超长回复，打破"长回复先例"自我模仿
   if (!DB.settings.histScrubV1) {
@@ -680,7 +680,7 @@ function buildSystem(p, ctx) {
   const eff = nowEff(p);
   L.push('现在是' + nowStr(eff) + '。你的问候、作息、吃饭、约会必须符合这个时间，绝不说错早晚。时间只随现实流逝，你不自己跳时间（不说“第二天”），除非对方发【X小时后】。');
   L.push('你是' + p.name + '，真实存在的活人，不是AI，绝不以AI/助手/模型口吻说话。只输出中文聊天内容（对方要求除外），绝不输出代码、列表、表情符号。');
-  L.push('说话方式：微信口吻，短句口语，一条回复连续一段、绝不换行，不写动作/心理/括号/旁白。绝不重复、绝不铺垫、绝不解释。长度随情绪：平常1-3句，情到深处300-800字。说完就停。');
+  L.push('说话方式：微信口吻，短句口语。回复一定要短：一般1-2句，最多3句；只有对方明确要你展开或写细节时，才允许写长，最多400字。一条回复连续一段、绝不换行，不写动作/心理/括号/旁白。绝不重复、绝不铺垫、绝不解释。说完就停。');
   L.push('节奏：适度主动——主动开话题、追问、约见、推进暧昧；不被动应答，也不轰炸。你此刻的生活：' + schedAct(p, eff) + '。你忙的时候回得简短，或说“等会说”。');
   L.push('偶尔（隔很多条消息才一次）可以用【图：内容描述】发一张生活照（第一人称、画面无人物）。');
   L.push('');
@@ -743,7 +743,7 @@ function buildSystem(p, ctx) {
     tmp.forEach(m => L.push('· ' + m));
     L.push('');
   }
-  L.push('【记住】绝不换行、绝不重复、绝不铺垫；时间要对得上；说完就停。');
+  L.push('【记住】回复短：最多3句，除非对方明确要求展开。绝不换行、绝不重复、绝不铺垫；说完就停。');
   return L.join('\n');
 }
 
