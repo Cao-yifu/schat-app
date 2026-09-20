@@ -9,9 +9,9 @@
 <meta name="apple-mobile-web-app-title" content="Schat">
 <meta name="theme-color" content="#121715">
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=19">
-<link rel="icon" type="image/png" href="./icons/icon-192.png?v=19">
-<link rel="stylesheet" href="./style.css?v=19">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=20">
+<link rel="icon" type="image/png" href="./icons/icon-192.png?v=20">
+<link rel="stylesheet" href="./style.css?v=20">
 </head>
 <body>
 
@@ -57,8 +57,14 @@
 
 <!-- 朋友圈页 -->
 <div id="page-moments" class="page tabpage">
-  <div class="hd"><div class="ttl">朋友圈</div><div class="acts"></div></div>
+  <div class="hd"><div class="ttl">朋友圈</div><div class="acts"><div class="act" id="momentsCamBtn">📷</div></div></div>
   <div class="scroll"><div class="moments" id="momentsList"></div></div>
+</div>
+
+<!-- 发朋友圈面板 -->
+<div class="panel" id="panelCompose">
+  <div class="hd"><div class="back" onclick="closePanel('panelCompose')">‹</div><div class="ttl">发朋友圈</div><div class="acts"></div></div>
+  <div class="bd" id="panelComposeBody"></div>
 </div>
 
 <!-- 设置页 -->
@@ -148,9 +154,9 @@
 </div>
 
 <div id="toast"></div>
-<script src="./sun_duo.js?v=19"></script>
-<script src="./lovers.js?v=19"></script>
-<script src="./moments.js?v=19"></script>
-<script src="./app.js?v=19"></script>
+<script src="./sun_duo.js?v=20"></script>
+<script src="./lovers.js?v=20"></script>
+<script src="./moments.js?v=20"></script>
+<script src="./app.js?v=20"></script>
 </body>
 </html>
