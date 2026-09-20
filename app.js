@@ -91,6 +91,19 @@ function loadDB() {
     });
     DB.settings.loversV1 = true;
   }
+  // 二批调整：删 5 位，按名字给保留的 5 位换头像（用户未手动清过头像的才换）
+  if (!DB.settings.loversV2) {
+    const REMOVE = ['赵凯', '周鹏', '马东', '高阳', '陆远'];
+    DB.personas = DB.personas.filter(p => REMOVE.indexOf(p.name) === -1);
+    if (window.LOVERS) {
+      window.LOVERS.forEach(L => {
+        if (!L || !L.name || !L.avatar) return;
+        const t = DB.personas.find(p => p.name === L.name);
+        if (t && !t._avatarCleared) t.avatar = L.avatar;
+      });
+    }
+    DB.settings.loversV2 = true;
+  }
   save();
 }
 function save() {
