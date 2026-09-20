@@ -87,7 +87,7 @@ window.MOMENTS = [
         comments: [{ who: "小泽", text: "哦～" }]
       },
       {
-        text: "有些结构看着冷，实际承重最大。人也一样。",
+        text: "有人问建筑最重要的是什么。我说，让人想回家。",
         likes: ["孙铎"],
         comments: [{ who: "孙铎", text: "受教。" }]
       }
@@ -133,9 +133,9 @@ window.MOMENTS = [
         comments: [{ who: "梁川", text: "家和万事兴。" }]
       },
       {
-        text: "周末哪也不去，在家看球。有点无聊，但等个人回来，就不无聊了。",
+        text: "昨晚又梦见你了。算了，我是直男，梦不算数。",
         likes: ["乐恩"],
-        comments: [{ who: "乐恩", text: "越哥还挺会" }]
+        comments: [{ who: "乐恩", text: "越哥嘴真硬" }, { who: "阿杰", text: "哈哈哈哈" }]
       }
     ]
   },
