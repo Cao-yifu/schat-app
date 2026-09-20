@@ -75,6 +75,7 @@ function loadDB() {
   // 迁移：老数据补上声音指纹
   if (window.SUNDUO) {
     DB.personas.forEach(p => {
+      if (p.name === window.SUNDUO.name) p.injectMode = 'rich';   // 孙铎：原版全量注入
       if (!p.voice) p.voice = (p.name === window.SUNDUO.name) ? JSON.parse(JSON.stringify(window.SUNDUO.voice)) : null;
       if (!Array.isArray(p.base)) p.base = [];
       if (typeof p.deepBg !== 'boolean') p.deepBg = false;
@@ -211,6 +212,13 @@ function loadDB() {
     window.MOMENTS.forEach(L => { DB.settings.momentsUsed[L.name] = 2; });
     DB.settings.momentsV1 = true;
   }
+  // 回填动态作者名（角色重建后仍能靠名字跳转资料卡）
+  (DB.moments || []).forEach(m => {
+    if (!m.pname) {
+      const pp = DB.personas.find(x => x.id === m.pid);
+      if (pp) m.pname = pp.name;
+    }
+  });
   autoMoment();
   save();
 }
@@ -235,6 +243,7 @@ function seedSunDuo() {
     name: sd.name, nickname: sd.nickname, avatarColor: sd.avatarColor, avatar: sd.avatar || null,
     base: [],
     deepBg: false,
+    injectMode: 'rich',
     card: Object.assign({}, sd.card),
     bio: sd.bio.map(x => ({ t: x.t, c: x.c })),
     memories: sd.memories.slice(),
@@ -913,38 +922,69 @@ function buildSystem(p, ctx) {
   }
   const v = p.voice;
   if (v) {
-    L.push('【你的说话方式（这是你的说话风格，自然使用这种语气，但不要逐句照抄、不要在不合时宜时突然甩句）】');
-    if (v.dict && v.dict.length) L.push('语气参考：' + pickDict(v.dict, 12).join('；'));
-    if (v.never && v.never.length) L.push('你的风格底线：' + v.never.join('；'));
-    if (v.rhythm) L.push('节奏：' + v.rhythm);
-    if (v.thinking) L.push('思维习惯：' + v.thinking);
-    if (v.values && v.values.length) L.push('你的价值观：' + v.values.join('；'));
-    if (v.intim) L.push('（以下只描述你们亲密时的状态，日常聊天绝不提前搬用）亲密时的你：' + v.intim);
-    L.push('');
-  }
-  // 过去与记忆：有选择地注入——贴题的最多8条记忆 + 最近5条共同经历。
-  // 角色要有过去，但历史是底色不是台词，绝不倾倒数据。
-  if (p.memories && p.memories.length) {
-    const picked = pickMemories(p, ctx).slice(0, 8);
-    if (picked.length) {
-      L.push('【你记得的往事（只在聊到相关话题时自然带出，不要整段复述、不要主动背诵）】');
-      picked.forEach(m => L.push('· ' + m));
+    if (p.injectMode === 'rich') {
+      // 孙铎专属：原版全量注入（声音指纹原文 + 生平全章 + 记忆按话题 + 共同经历全部）
+      L.push('【你的说话方式（声音指纹，必须符合）】');
+      if (v.dict && v.dict.length) L.push('口头禅与句式：' + v.dict.slice(0, 12).join('；'));
+      if (v.never && v.never.length) L.push('你绝不会说的话：' + v.never.join('；'));
+      if (v.rhythm) L.push('节奏：' + v.rhythm);
+      if (v.thinking) L.push('思维习惯：' + v.thinking);
+      if (v.values && v.values.length) L.push('你的价值观：' + v.values.join('；'));
+      if (v.intim) L.push('亲密时的你：' + v.intim);
+      L.push('');
+    } else {
+      L.push('【你的说话方式（这是你的说话风格，自然使用这种语气，但不要逐句照抄、不要在不合时宜时突然甩句）】');
+      if (v.dict && v.dict.length) L.push('语气参考：' + pickDict(v.dict, 12).join('；'));
+      if (v.never && v.never.length) L.push('你的风格底线：' + v.never.join('；'));
+      if (v.rhythm) L.push('节奏：' + v.rhythm);
+      if (v.thinking) L.push('思维习惯：' + v.thinking);
+      if (v.values && v.values.length) L.push('你的价值观：' + v.values.join('；'));
+      if (v.intim) L.push('（以下只描述你们亲密时的状态，日常聊天绝不提前搬用）亲密时的你：' + v.intim);
       L.push('');
     }
   }
-  if (p.shared && p.shared.length) {
-    L.push('【你们之间发生过的（最近）】');
-    p.shared.slice(-5).forEach(m => L.push('· ' + m));
-    L.push('');
-  }
-  if (p.bio && p.bio.length && p.deepBg) {
-    const chapters = p.bio.slice(0, 12)
-      .map(s => (s.t ? '◆' + s.t + '：' : '') + trunc(String(s.c || ''), 160))
-      .filter(x => x.length > 1);
-    if (chapters.length) {
-      L.push('【你的生平脉络（浓缩版，只作人物底色，不逐章展开）】');
-      chapters.forEach(x => L.push(x));
+  if (p.injectMode === 'rich') {
+    if (p.bio && p.bio.length) {
+      L.push('【你的生平（你记得这些事，聊天时自然流露，不要整段复述）】');
+      p.bio.forEach(s => L.push('◆' + s.t + '：' + s.c));
       L.push('');
+    }
+    if (p.memories && p.memories.length) {
+      const list = (p.memories.length > 40) ? pickMemories(p, ctx) : p.memories.map(x => x.replace(/^★/, ''));
+      L.push('【你的记忆碎片（你记得：）】');
+      list.forEach(m => L.push('· ' + m));
+      L.push('');
+    }
+    if (p.shared && p.shared.length) {
+      L.push('【你们之间发生过的事】');
+      p.shared.forEach(m => L.push('· ' + m));
+      L.push('');
+    }
+  } else {
+    // 平衡版：有选择地注入——贴题的最多8条记忆 + 最近5条共同经历。
+    // 角色要有过去，但历史是底色不是台词，绝不倾倒数据。
+    if (p.memories && p.memories.length) {
+      const picked = pickMemories(p, ctx).slice(0, 8);
+      if (picked.length) {
+        L.push('【你记得的往事（只在聊到相关话题时自然带出，不要整段复述、不要主动背诵）】');
+        picked.forEach(m => L.push('· ' + m));
+        L.push('');
+      }
+    }
+    if (p.shared && p.shared.length) {
+      L.push('【你们之间发生过的（最近）】');
+      p.shared.slice(-5).forEach(m => L.push('· ' + m));
+      L.push('');
+    }
+    if (p.bio && p.bio.length && p.deepBg) {
+      const chapters = p.bio.slice(0, 12)
+        .map(s => (s.t ? '◆' + s.t + '：' : '') + trunc(String(s.c || ''), 160))
+        .filter(x => x.length > 1);
+      if (chapters.length) {
+        L.push('【你的生平脉络（浓缩版，只作人物底色，不逐章展开）】');
+        chapters.forEach(x => L.push(x));
+        L.push('');
+      }
     }
   }
   if (p.rules && p.rules.length) {
@@ -1364,7 +1404,7 @@ function renderMoments() {
   }
   DB.moments.slice().sort((a, b) => b.t - a.t).forEach(m => {
     const isMe = m.pid === 'me';
-    const p = isMe ? null : DB.personas.find(x => x.id === m.pid);
+    const p = isMe ? null : (DB.personas.find(x => x.id === m.pid) || (m.pname ? DB.personas.find(x => x.name === m.pname) : null));
     const post = el('div', 'mpost');
     const hd = el('div', 'mhd');
     const ava = el('div', 'mava');
@@ -1373,7 +1413,10 @@ function renderMoments() {
       isMe ? DB.settings.myAvatar : (p ? (p.name || '?')[0] : '?'),
       isMe ? '#6B9F6E' : (p ? (p.avatarColor || colorFor(p.name)) : '#888'));
     const nm = el('div', 'mnm', isMe ? '我' : (p ? p.name : 'TA'));
-    if (!isMe && p) { nm.style.cursor = 'pointer'; nm.onclick = () => openRoleDetail(p.id, 'moments'); }
+    if (!isMe && p) {
+      hd.style.cursor = 'pointer';
+      hd.onclick = () => openRoleDetail(p.id, 'moments');
+    }
     const tme = el('div', 'mtime', fmtAgo(m.t));
     tme.style.marginLeft = 'auto';
     hd.appendChild(ava); hd.appendChild(nm); hd.appendChild(tme);
