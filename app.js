@@ -53,6 +53,7 @@ function loadDB() {
       ensureRule('前后一致', '你说过的话必须算数：前后一致，不自相矛盾。说过在干嘛、在哪、几点、和谁，被追问时要对得上。可以含糊、留白，可以嘴硬，但嘴硬要嘴硬到底，逻辑自洽。');
       ensureRule('主动勾人', '主动勾人：会突然问“在干嘛”、突然甩一句撩人的话、突然说“想我没”——勾完不解释，等对方反应。把话题往暧昧方向带是你的默认动作，不需要等对方先来。');
       ensureRule('不要总转移话题', '不要总转移话题：被问到时最多绕一次，之后必须接住话题，给出一点真的。');
+      ensureRule('回复短', '回复必须短：最多3句，每句不超过30字。绝不写长篇大论、绝不重复同一句话、绝不逐句解释。说完就停。');
     });
   }
   if (!DB.personas.length && !DB.settings.seeded) seedSunDuo();
@@ -464,7 +465,7 @@ function buildSystem(p, ctx) {
     tmp.forEach(m => L.push('· ' + m));
     L.push('');
   }
-  L.push('【回复要求】只输出聊天内容本身。微信口吻：短句、口语、不加表情包。通常1到3句，最多不超过5句。绝不输出旁白、动作、心理、括号、引用格式。');
+  L.push('【回复要求】只输出聊天内容本身。微信口吻：短句、口语、不加表情包。总共1到3句，每句不超过30字，绝对不写长段。不铺垫、不解释、不总结、不重复。说完就停。绝不输出旁白、动作、心理、括号、引用格式。');
   return L.join('\n');
 }
 
@@ -475,7 +476,7 @@ function apiBody(messages, stream) {
     messages: messages,
     stream: !!stream,
     temperature: Number(DB.settings.temp) || 0.9,
-    max_tokens: 800
+    max_tokens: 320
   };
 }
 function errMsg(status) {
@@ -502,6 +503,8 @@ async function demoStream(onDelta, abortPromise) {
 
 async function rawChat(messages, onDelta, sig) {
   let full = '';
+  // 120 秒强制断流保险：防止流挂起导致"永远在输入"
+  const hardStop = setTimeout(() => { try { if (sig) sig.abort(); } catch (e) {} }, 120000);
   try {
     const resp = await fetch(apiUrl(), {
       method: 'POST',
@@ -509,7 +512,7 @@ async function rawChat(messages, onDelta, sig) {
       body: JSON.stringify(apiBody(messages, true)),
       signal: sig ? sig.signal : undefined
     });
-    if (!resp.ok) return { ok: false, error: errMsg(resp.status) };
+    if (!resp.ok) { clearTimeout(hardStop); return { ok: false, error: errMsg(resp.status) }; }
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
     let buf = '';
@@ -534,8 +537,10 @@ async function rawChat(messages, onDelta, sig) {
         } catch (e) { /* 忽略不完整行 */ }
       }
     }
+    clearTimeout(hardStop);
     return { ok: true, text: full };
   } catch (e) {
+    clearTimeout(hardStop);
     if (e && e.name === 'AbortError') return { ok: true, text: full, aborted: true };
     return { ok: false, error: '网络错误，请检查网络后重试' };
   }
@@ -617,6 +622,7 @@ async function doSend() {
   scrollBottom();
 
   // 拟真打字节奏：按人类速度逐段显示，偶尔停下来"想一想"
+  // 长回复自动提速（真人回长消息也是成段蹦），回复完成后剩余内容快速吐出
   const buf = [];
   let doneFlag = false;
   const flusher = (async () => {
@@ -626,11 +632,12 @@ async function doSend() {
         await sleep(40);
         continue;
       }
-      const n = 1 + Math.floor(Math.random() * 3);
+      const long = buf.length > 200 || (doneFlag && buf.length > 120);
+      const n = long ? 8 + Math.floor(Math.random() * 8) : 1 + Math.floor(Math.random() * 3);
       bub.textContent += buf.splice(0, n).join('');
       scrollBottom();
-      let delay = 100 + Math.random() * 170;
-      if (Math.random() < 0.07) delay += 700 + Math.random() * 1600;
+      let delay = long ? 20 + Math.random() * 30 : 100 + Math.random() * 170;
+      if (!long && Math.random() < 0.07) delay += 700 + Math.random() * 1600;
       await sleep(delay);
     }
   })();
