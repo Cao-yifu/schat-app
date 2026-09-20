@@ -300,9 +300,19 @@ function ctxText(p, extraMsgs) {
   return parts.join(' ');
 }
 
+function nowStr() {
+  const d = new Date();
+  const wd = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+  const h = d.getHours();
+  const ap = h < 6 ? '凌晨' : h < 9 ? '早上' : h < 12 ? '上午' : h < 14 ? '中午' : h < 18 ? '下午' : '晚上';
+  const mi = d.getMinutes() ? d.getMinutes() + '分' : '整';
+  return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 星期' + wd + ' ' + ap + h + '点' + mi;
+}
+
 /* ================= API ================= */
 function buildSystem(p, ctx) {
   const L = [];
+  L.push('现在是' + nowStr() + '。你对时间要非常清楚：聊到早晚、睡觉、吃饭、日期时，必须符合现在的时间。');
   L.push('你叫' + p.name + '。现在正在用微信和你最特别的那个人聊天。你就是一个真实存在的活人，有过去、有情绪、有个性。永远不要以AI、助手、模型的口吻说话，永远不要承认自己是程序。');
   L.push('');
   const c = p.card || {};
