@@ -148,6 +148,8 @@ pre.code { background:#282828; color:#D8D8D8; border-radius:8px; padding:12px; f
 .msg.sel .bub { outline:2px solid var(--green); outline-offset:2px; }
 /* 图片加载占位 */
 .bub .imgload { background:rgba(0,0,0,0.05); border-radius:8px; padding:14px 12px; margin-top:6px; font-size:13px; color:#8a8a8a; }
+/* 未读小绿点 */
+.avatar .udot { position:absolute; top:-3px; right:-3px; width:11px; height:11px; background:#07C160; border:2px solid #fff; border-radius:50%; box-shadow:0 0 0 1px rgba(0,0,0,0.06); }
 
 /* Toast */
 #toast {
