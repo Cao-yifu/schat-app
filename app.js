@@ -35,7 +35,7 @@ function loadDB() {
   if (!raw || !Array.isArray(raw.personas)) raw = { personas: [], settings: {} };
   raw.settings = Object.assign({
     key: '', base: 'https://api.deepseek.com', model: 'deepseek-chat',
-    temp: 0.9, maxHist: 400, maxReply: 800, onboardDone: false, myAvatar: '我', myAvatarImg: ''
+    temp: 0.9, maxHist: 400, maxReply: 800, imgOn: true, onboardDone: false, myAvatar: '我', myAvatarImg: ''
   }, raw.settings || {});
   DB = raw;
   // 迁移：默认我的头像（用户主动清空过则不再恢复）
@@ -331,6 +331,7 @@ function renderChat() {
       const qq = el('div', 'qq', '「' + trunc(m.q.c, 120) + '」');
       bub.insertBefore(qq, bub.firstChild);
     }
+    if (m.img && m.img.length) m.img.forEach(im => addImgToBub(bub, im));
     wrap.appendChild(bub);
     row.appendChild(ava); row.appendChild(wrap);
     box.appendChild(row);
@@ -497,6 +498,62 @@ function trimReply(text) {
   return out.trim();
 }
 
+/* ================= 照片功能 ================= */
+function extractPhotos(text) {
+  const imgs = [];
+  const t = String(text || '').replace(/【图[:：]([^】]+)】/g, (m, d) => {
+    if (d && d.trim()) imgs.push({ d: d.trim() });
+    return '';
+  });
+  return { text: t, imgs };
+}
+const IMG_TAGS = [['面', 'noodles'], ['咖啡', 'coffee'], ['猫', 'cat'], ['狗', 'dog'], ['车', 'motorcycle'], ['健身房', 'gym'], ['酒店', 'hotel room'], ['夜', 'city night'], ['雨', 'rain'], ['雪', 'snow'], ['海', 'sea'], ['花', 'flowers'], ['书', 'books'], ['医院', 'hospital'], ['酒吧', 'bar'], ['饭', 'food']];
+function fallbackImgTag(desc) {
+  for (const [zh, en] of IMG_TAGS) {
+    if (desc.includes(zh)) return en;
+  }
+  return 'daily life';
+}
+function setImg(bub, url, im) {
+  const img = document.createElement('img');
+  img.alt = im.d;
+  img.loading = 'lazy';
+  img.src = url;
+  img.onerror = () => {
+    img.outerHTML = '';
+    bub.textContent += (bub.textContent ? ' ' : '') + '（图：' + im.d + '）';
+  };
+  bub.appendChild(img);
+}
+async function addImgToBub(bub, im) {
+  if (!DB.settings.imgOn) {
+    bub.textContent += (bub.textContent ? ' ' : '') + '（图：' + im.d + '）';
+    return;
+  }
+  const s = DB.settings;
+  // 有 MiniMax key → 官方文生图（内容最贴合）
+  if (String(s.base).toLowerCase().includes('minimax') && s.key) {
+    try {
+      const host = s.base.toLowerCase().includes('minimax.io') ? 'https://api.minimax.io' : 'https://api.minimaxi.com';
+      const resp = await fetch(host + '/v1/image_generation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + s.key },
+        body: JSON.stringify({
+          model: 'image-01',
+          prompt: 'no people, no face, no human, first-person view photo, realistic, ' + im.d,
+          aspect_ratio: '1:1',
+          n: 1
+        })
+      });
+      const j = await resp.json();
+      const url = j && j.data && j.data.image_urls && j.data.image_urls[0];
+      if (url) { setImg(bub, url, im); return; }
+    } catch (e) { /* 失败走兜底 */ }
+  }
+  // 兜底：随机网络图库（按关键词取图）
+  setImg(bub, 'https://loremflickr.com/768/768/' + fallbackImgTag(im.d), im);
+}
+
 function buildSystem(p, ctx) {
   const L = [];
   L.push('现在是' + nowStr() + '。');
@@ -504,6 +561,7 @@ function buildSystem(p, ctx) {
   L.push('');
   L.push('【铁律·说话方式（比什么都重要）】用微信聊天口吻：短句、口语。一条回复就是连续的一段文字，绝不换行、绝不分段，绝不写动作/心理/括号/旁白。长度跟着情绪走：平常1-3句很短；情绪浓、情到深处、对方想听细节时放开写，300-800字都正常。绝不重复、绝不铺垫、绝不解释。说完就停。');
   L.push('【对话节奏】适度主动：主动开启话题、主动追问、主动约见面、主动推进暧昧氛围。不要只会等对方提问、不要半推半就应付。注意度：自然、不轰炸、不卑微。');
+  L.push('【照片】你可以发照片分享日常。当内容适合配图（吃的、风景、地点、身边的东西）时，偶尔在回复里写【图：内容描述】来发一张。照片必须是第一人称视角、画面里没有任何人物、不露脸。频率要低：最多隔几条消息发一次，别每条都发，一张就够。');
   L.push('');
   const c = p.card || {};
   const cd = [];
@@ -768,13 +826,18 @@ async function doSend() {
     renderChat();
     return;
   }
-  const t = trimReply(bub.textContent.trim());
+  let rawT = bub.textContent.trim();
+  const parsed = extractPhotos(rawT);
+  const t = trimReply(parsed.text);
   bub.textContent = t;
-  if (!t) {
+  if (parsed.imgs.length) parsed.imgs.forEach(im => addImgToBub(bub, im));
+  if (!t && !parsed.imgs.length) {
     bub.textContent = '（没说出话来）';
     toast('他这次没有回应，可能被限流了，再发一次试试');
   }
-  pushMsg(p, { r: 'a', c: t || '…', t: Date.now() });
+  const saveMsg = { r: 'a', c: t || (parsed.imgs.length ? '📷' : '…'), t: Date.now() };
+  if (parsed.imgs.length) saveMsg.img = parsed.imgs;
+  pushMsg(p, saveMsg);
 }
 
 /* 从最近聊天提取记忆 */
@@ -1011,7 +1074,14 @@ function showSettings() {
   iHist.type = 'text'; iHist.value = String(s.maxHist);
   iHist.oninput = () => { s.maxHist = parseInt(iHist.value) || 400; save(); };
   f6.appendChild(iHist);
-  cb1.appendChild(f1); cb1.appendChild(f2); cb1.appendChild(f3); cb1.appendChild(f4); cb1.appendChild(f5); cb1.appendChild(f6);
+  const f7 = el('div', 'fld');
+  f7.appendChild(el('label', '', '照片功能（TA 发图分享日常；MiniMax key 时用官方生图，否则随机网络图库）'));
+  const cbImg = el('input');
+  cbImg.type = 'checkbox';
+  cbImg.checked = s.imgOn !== false;
+  cbImg.onchange = () => { s.imgOn = cbImg.checked; save(); };
+  f7.appendChild(cbImg);
+  cb1.appendChild(f1); cb1.appendChild(f2); cb1.appendChild(f3); cb1.appendChild(f4); cb1.appendChild(f5); cb1.appendChild(f6); cb1.appendChild(f7);
   d1.appendChild(cb1);
   box.appendChild(d1);
 
