@@ -1,7 +1,7 @@
 /* Schat v2 —— 回复引擎
  * 管线：收消息 → 指令解析（RS/LS/【X小时后】）→ 构建分层提示词 → 「对方正在输入…」停顿
  *      → SSE 流式接收、逐字打出（可调速、可停止）→ 整形硬截断 → 入库 →
- *      严格提取时间约定 → 追问定时（30秒仅一条）→ 偶尔发生活照（data:image 持久化）。
+ *      追问定时（30秒仅一条）→ 偶尔发生活照（data:image 持久化）。
  * 每个情人的请求串行执行（队列），停止按钮通过 AbortController 中止。
  */
 (function () {
@@ -27,6 +27,7 @@
     cps: 10,              // 打字速度（字/秒）
     followUp: true,
     followUpSec: 30,      // 追问间隔（秒）
+    lifeGreet: true,      // 日常主动问候
     photos: true,         // 生活照开关
     keepN: 300,           // 每角色保留消息条数
     historyN: 60,         // 注入模型的历史条数
@@ -222,20 +223,11 @@
     }
   }
 
-  /* 回复完成后的收尾：承诺提取、追问定时、照片、裁剪 */
+  /* 回复完成后的收尾：追问定时、照片、裁剪 */
   function afterReply(loverId, persona, msg, opts) {
     const jobs = [];
-    if (msg.type === 'text' && msg.text) {
-      jobs.push(sync.offset(loverId).then(function (off) {
-        const found = tp.extractPromises(msg.text, new Date(Date.now() + off));
-        if (found.length) {
-          engine.hooks.onSys(loverId, '记下约定：' + found.map(function (p) { return tp.dueText(p.due); }).join('、'));
-          return sync.addPromises(loverId, found);
-        }
-      }));
-    }
     jobs.push(engine.getSettings().then(function (st) {
-      if (st.followUp && !opts.noFollow) armFollowUp(loverId, persona, st);
+      if (st.followUp && !opts.noFollow && !opts.follow) armFollowUp(loverId, persona, st);
     }));
     jobs.push(maybePhoto(loverId, persona));
     jobs.push(engine.getSettings().then(function (st) {
@@ -255,7 +247,7 @@
         if (running[loverId]) return;
         enqueue(loverId, function () {
           const sec = Math.round((Date.now() - armedAt) / 1000);
-          const extra = '对方已经' + sec + '秒没有回消息。按你的性格，发一条追问、查岗或撩拨把话接住——只发一条，要短，不要连发。';
+          const extra = '对方已经' + sec + '秒没回你上一条消息。你有点在意，用你的口吻补一条简短的追问，就一条，1-2句，催他回答你刚才问的事。绝不能自问自答，绝不能替你上一条消息做解释或续写，绝不能开新话题。';
           return streamReply(loverId, persona, { extra: extra, follow: true })
             .catch(function (e) { console.warn('[追问失败]', e && e.message); });
         });
@@ -351,52 +343,41 @@
   };
   engine.isRunning = function (loverId) { return !!running[loverId]; };
 
-  /* 打开聊天时的主动问候：太久没说话则按作息重新开口 */
-  engine.maybeGreet = function (loverId) {
-    const persona = sync.get(loverId);
-    if (!persona) return Promise.resolve();
-    return store.msgs(loverId).then(function (arr) {
-      if (running[loverId]) return;
-      const last = arr[arr.length - 1];
-      if (last && Date.now() - last.ts < 20 * 60 * 1000) return;
-      return enqueue(loverId, function () {
-        const extra = !last
-          ? '这是你们第一次说话。按照你现在的作息状态，自然地开一个头：可以是在干嘛、一句想念、一个约、或一个坏念头。一两句，要勾人。'
-          : '你们已经有一段时间没说话了（现实时间过了很久）。按照你此刻的作息状态，自然地重新开口，就像真人隔了一阵又发来消息一样。一两句。';
-        return streamReply(loverId, persona, { extra: extra }).catch(function (e) {
-          console.warn('[问候失败]', e && e.message);
-        });
-      });
-    });
-  };
+  function shouldLifeGreet(lastTs, lastHiTs, nowMs, rnd, st) {
+    if (!st || st.lifeGreet === false || !String(st.apiKey || '').trim()) return false;
+    if (!Number.isFinite(nowMs) || !Number.isFinite(lastTs)) return false;
+    const hour = new Date(nowMs).getHours();
+    if (hour < 8 || hour > 23) return false;
+    if (nowMs - lastTs < 18 * 3600 * 1000) return false;
+    if (lastHiTs && (!Number.isFinite(lastHiTs) || nowMs - lastHiTs < 24 * 3600 * 1000)) return false;
+    return rnd < 0.25;
+  }
+  engine.shouldLifeGreet = shouldLifeGreet;
 
-  /* 到期承诺提醒器：每 15 秒扫一次，到期催角色兑现（根治「承诺不守时」） */
-  engine.tick = function () {
-    const list = sync.list();
-    let p = Promise.resolve();
-    for (const persona of list) {
-      p = p.then(function () {
-        return sync.promises(persona.id).then(function (arr) {
-          const now = Date.now();
-          for (let i = 0; i < arr.length; i++) {
-            const pr = arr[i];
-            if (pr.done || pr.due > now) continue;
-            if (running[persona.id]) continue;
-            (function (idx, item) {
-              sync.settlePromise(persona.id, idx).then(function () {
-                enqueue(persona.id, function () {
-                  const extra = '你承诺过「' + item.label + '」，约定的' + tp.dueText(item.due) + '已经过了。现在主动兑现它，或者如实交代为什么没做到——必须面对，不许装没发生过。';
-                  return streamReply(persona.id, persona, { extra: extra }).catch(function (e) {
-                    console.warn('[提醒失败]', e && e.message);
-                  });
+  /* 生活作息主动问候：隔一两天偶尔自然地想起对方 */
+  engine.lifeTick = function () {
+    return engine.getSettings().then(function (st) {
+      if (st.lifeGreet === false || !String(st.apiKey || '').trim()) return;
+      const jobs = sync.list().map(function (persona) {
+        return store.msgs(persona.id).then(function (arr) {
+          const last = arr[arr.length - 1];
+          if (!last) return;
+          return store.get('lifeHi_' + persona.id, 0).then(function (lastHiTs) {
+            const now = Date.now();
+            if (!shouldLifeGreet(last.ts, lastHiTs, now, Math.random(), st)) return;
+            return store.set('lifeHi_' + persona.id, now).then(function () {
+              return enqueue(persona.id, function () {
+                const extra = '按你的生活作息，此刻你自然想起了他（或正好有事想跟他说）。用你的口吻主动给他发一条消息，比如问他在干嘛、提醒他吃饭、分享一件小事，就一条，简短1-2句。不要显得生硬，不要提"好久没联系"。';
+                return streamReply(persona.id, persona, { extra: extra }).catch(function (e) {
+                  console.warn('[日常问候失败]', e && e.message);
                 });
               });
-            })(i, pr);
-          }
+            });
+          });
         });
       });
-    }
-    return p;
+      return Promise.all(jobs);
+    });
   };
 
   G.engine = engine;
