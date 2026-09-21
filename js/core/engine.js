@@ -181,9 +181,9 @@
         if (lib.scenes.heat && lib.scenes.heat.length) lines.push.apply(lines, pick(lib.scenes.heat, 2));
       }
       const pool = (lib.per && lib.per[persona.name]) || (lib.per && lib.per['孙铎']) || [];
-      if (pool.length) lines.push(pick(pool, 1)[0]);
+      if (pool.length) lines.push.apply(lines, pick(pool, 2));
       if (!lines.length) return ''; // 整库为空就不注入，免得提示词里出现空参考段
-      return '\n【本地素材参考】以下是几句贴合此刻气氛的话，可以照用、也可以按你的口吻重组，不要逐字背三句以上：\n' +
+      return '\n【本地素材参考】以下是几句贴合此刻气氛的话，可以照用、也可以按你的口吻重组，不要整段照抄：\n' +
         lines.map(function (s) { return '· ' + s; }).join('\n');
     });
   }
