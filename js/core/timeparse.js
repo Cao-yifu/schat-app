@@ -79,8 +79,8 @@
   const COMMIT_RE = /(到|过来|过來|来|见|見|找|接|等|陪|回|给你|給你|打给|打給|发|發|说|說|弄|做|洗|收拾|做饭|做飯|出门|出門|出发|出發|下班|回来|回來|回去|过去|過去|上来|上來|汇报|匯報|约|約)/;
   // 隐喻/意向/梦境黑名单：命中即拒绝（第三道闸）
   const METAPHOR_RE = /(梦到|夢到|梦见|夢見|做梦|做夢|梦里|夢裡|梦醒|幻想|想像|想象|虚构|假如梦)/;
-  // 数字+单位：分钟/小时/秒（分钟必须×60——旧版痛点的直接修正）
-  const DURATION_RE = /(\d{1,3})\s*(?:个|個)?\s*(小时|小時|钟头|鐘頭|分钟|分鐘|分|秒)/g;
+  // 数字+单位：分钟/小时/秒（分钟必须×60——旧版痛点的直接修正）；「半」只与小时搭配（半小时=30分钟）
+  const DURATION_RE = /(半|\d{1,3})\s*(?:个|個)?\s*(小时|小時|钟头|鐘頭|分钟|分鐘|分|秒)/g;
   const DAY_MARK_RE = /(今晚|今天|明早|明天早上|明天|后天|後天|大后天|大後天|周[一二三四五六日天]|礼拜[一二三四五六日天]|星期[一二三四五六日天])/;
   const DAYPART_RE = /(凌晨|清晨|早上|早晨|上午|中午|午后|午後|下午|傍晚|晚上|夜里|夜裡|深夜)/;
   const CLOCK_RE = /(\d{1,2})\s*[点點][:：]?\s*(\d{1,2})?\s*(?:分)?/;
@@ -149,12 +149,18 @@
       let m;
       while ((m = DURATION_RE.exec(clause)) !== null) {
         const n = m[1], unit = m[2];
-        if (!durValid(n, unit)) continue;
+        let ms;
+        if (n === '半') {
+          if (!/(小时|小時|钟头|鐘頭)/.test(unit)) continue; // 「半」只认小时
+          ms = 30 * 60 * 1000;
+        } else {
+          if (!durValid(n, unit)) continue;
+          ms = durToMs(n, unit);
+        }
         const after = clause.slice(m.index + m[0].length, m.index + m[0].length + 8);
         const before = clause.slice(Math.max(0, m.index - 8), m.index);
         // 第二道：承诺语境——时间词前后要有承诺动词（允许「就/便/大概」等填充字）
         if (!COMMIT_RE.test(after) && !COMMIT_RE.test(before)) continue;
-        const ms = durToMs(n, unit);
         out.push({ label: clause.slice(0, 40), due: now.getTime() + ms });
         break; // 每条子句最多取一个时长约定
       }
@@ -165,7 +171,9 @@
       if (cm) {
         const hasDay = DAY_MARK_RE.test(clause) || DAYPART_RE.test(clause);
         if (hasDay || COMMIT_RE.test(clause)) {
-          const due = clockToDate(cm[1], cm[2], clause, now);
+          // 「8点半」= 8:30（正则只匹配到「8点」，分钟组为空）
+          const minute = cm[2] || (/[点點]\s*半/.test(clause) ? '30' : undefined);
+          const due = clockToDate(cm[1], minute, clause, now);
           if (due) out.push({ label: clause.slice(0, 40), due: due });
         }
       }
