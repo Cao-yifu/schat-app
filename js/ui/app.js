@@ -472,7 +472,7 @@
         switchRow('lifeGreet', '日常主动问候', '隔一两天，TA 按作息自己发来消息（如问你在干嘛）', st.lifeGreet) +
         fld('追问间隔（秒）', 'setFollowSec', st.followUpSec, '默认 30') +
         switchRow('photos', '生活照', 'TA 偶尔发生活照（免费图库，发出即转存本地）', st.photos) +
-        switchRow('intimLib', '本地亲密素材库', '亲密语境自动调用本地话术素材（原创对白库，不额外花钱）', st.intimLib) +
+        switchRow('intimLib', '亲密素材参考', '亲密场景给 AI 提供本地话术作参考（回复仍全部由 AI 生成）', st.intimLib) +
         fld('每人保留消息条数', 'setKeep', st.keepN, '默认 300，超出自动裁掉最早的') +
         fld('注入模型的历史条数', 'setHist', st.historyN, '默认 60') +
         '</div></div>' +
