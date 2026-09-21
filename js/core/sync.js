@@ -24,8 +24,11 @@
   /* 启动同步：返回安装后的角色数组 */
   sync.boot = function () {
     const b = bundled();
-    return store.get('personas', null).then(function (installed) {
-      return store.get('tombstones', []).then(function (tombs) {
+    // 先读上次安装的版本号再比对：_installedVer 只在内存里，不读库会导致每次启动都误判为升级
+    return store.get('installed_ver', 0).then(function (savedVer) {
+      sync._installedVer = savedVer || 0;
+      return store.get('personas', null).then(function (installed) {
+        return store.get('tombstones', []).then(function (tombs) {
         let map = installed || {};
         let dirty = false;
         if (!installed) {
@@ -54,6 +57,7 @@
             sync._map = map;
             return sync.list();
           });
+        });
         });
       });
     });
