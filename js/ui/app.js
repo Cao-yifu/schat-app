@@ -470,6 +470,7 @@
         switchRow('lifeGreet', '日常主动问候', '隔一两天，TA 按作息自己发来消息（如问你在干嘛）', st.lifeGreet) +
         fld('追问间隔（秒）', 'setFollowSec', st.followUpSec, '默认 30') +
         switchRow('photos', '生活照', 'TA 偶尔发生活照（免费图库，发出即转存本地）', st.photos) +
+        switchRow('intimLib', '本地亲密素材库', '亲密语境自动调用本地话术素材（原创对白库，不额外花钱）', st.intimLib) +
         fld('每人保留消息条数', 'setKeep', st.keepN, '默认 300，超出自动裁掉最早的') +
         fld('注入模型的历史条数', 'setHist', st.historyN, '默认 60') +
         '</div></div>' +
@@ -509,6 +510,7 @@
       $('sw_followUp').addEventListener('change', function () { save({ followUp: this.checked }, '已保存'); });
       $('sw_lifeGreet').addEventListener('change', function () { save({ lifeGreet: this.checked }, '已保存'); });
       $('sw_photos').addEventListener('change', function () { save({ photos: this.checked }, '已保存'); });
+      $('sw_intimLib').addEventListener('change', function () { save({ intimLib: this.checked }, '已保存'); });
       $('wipeBtn').addEventListener('click', function () {
         if (!confirm('确定清空全部数据？聊天记录、设定、API Key 都会消失，不可恢复。')) return;
         if (!confirm('再确认一次：真的全部清空？')) return;
