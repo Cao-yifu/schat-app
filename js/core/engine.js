@@ -93,7 +93,7 @@
   const INTIM_STRONG = /(硬了|湿了|进来|深一点|受不了|别停|顶|插|骑|坐上来|呻吟|高潮|射|含住|里面|自己动|求我|叫出来|出声|别忍|趴好|操你|干死|鸡巴|骚逼|贱货|欠操|妈的|母狗|爽死|插进|舔我|射了|叫老公|爬过来|我要你|要你|放倒)/;
 
   /* ---------- 场景状态机：事件驱动触发（不是关键词驱动） ----------
-   * normal(日常) → warm(暧昧,注入素材) → sex(做爱,本地直出)
+   * normal(日常) → warm(暧昧,注入素材) → sex(做爱,API+场景指引)
    * 进入 sex 后：嗯/快点/继续等短回应与氛围词都维持高热；
    * 只有明确话题切换（明天/开会/吃饭等日常话题）才冷却。45分钟无互动自动重置。 */
   const AMBIENT_RE = /(嗯|啊|继续|快点|别停|再深|再快|爽|用力|抱|亲|要|给|干|弄|叫|舒服|对|就这样|别动|转过来|趴|上来|下去|射|出来|接着|轻点|慢点|重点|腿|腰|里面|顶|含|张|硬|湿|高潮|到了|再来|想|好舒服|好爽|好热|好紧|快点呀|快点啊|更深|别出来|快点射|操|痒|酥|麻)/;
@@ -188,114 +188,18 @@
     });
   }
 
-  /* ---------- 高潮层本地直出：heat≥2 完全不调 API ---------- */
-  const DIRTY_STYLE_RE = /(操|干死|骚|逼|贱|鸡巴|舔|欠操|妈的|母狗|婊子|狗|射|爬|含|趴)/;
-  const MOAN_STYLE_RE = /(爽|硬|想要|插进|宝贝|宝宝|啊|舒服|好热|好紧|快一点|深一点|亲我|抱我|想我|想要)/;
-
-  /* ---------- sex 场景回合编排：直出/融合轮换，长短交错 ---------- */
-  function buildSexTurn(loverId, persona) {
-    const lib = (typeof window !== 'undefined' && window.SCHAT_INTIM) || (typeof globalThis !== 'undefined' && globalThis.SCHAT_INTIM) || null;
-    if (!lib) return Promise.resolve(null);
-    return store.msgs(loverId).then(function (msgs) {
-      const used = msgs.filter(function (m) { return m.local || m.intim; }).length;
-      const short = (lib.scenes && lib.scenes.short) || [];
-      const dirty = (lib.scenes && lib.scenes.dirty) || [];
-      const moan = (lib.scenes && lib.scenes.moan) || [];
-      const longp = (lib.scenes && lib.scenes.long) || [];
-      const pattern = used % 3;
-      if (pattern === 1) return null; // 融合轮次 → 走 API + 强制本地句
-      return store.get('scene_' + loverId, null).then(function (sc) {
-        const place = sc && sc.place;
-        const placePool = place && lib.scenes && lib.scenes.places && lib.scenes.places[place];
-        // 50% 用地点专属池（若有），让直出的话也带场景感
-        if (placePool && placePool.length && used % 2 === 0) {
-          return localReply(loverId, persona, placePool[(used * 5 + 3) % placePool.length]);
-        }
-        if (pattern === 0 && short.length) {
-          return localReply(loverId, persona, short[(used * 5 + 3) % short.length]);
-        }
-        // pattern 2：中等句/长句交替（长短交错）
-        let pool = (used % 2 === 0) ? (dirty.length ? dirty : moan) : (longp.length ? longp : dirty);
-        if (!pool.length) pool = dirty.concat(moan);
-        if (!pool.length) return null; // 素材全空 → 回退 API，绝不能拿 undefined 去打字
-        return localReply(loverId, persona, pool[(used * 5 + 3) % pool.length]);
-      });
-    });
-  }
-
-  /* 融合：强制 API 回复原样包含一条本地句（开头/结尾交替） */
-  function forceIntro(loverId, persona, ctx, heat) {
-    const lib = (typeof window !== 'undefined' && window.SCHAT_INTIM) || (typeof globalThis !== 'undefined' && globalThis.SCHAT_INTIM) || null;
-    if (!lib) return Promise.resolve(ctx);
-    return store.msgs(loverId).then(function (msgs) {
-      const recentMe = msgs.filter(function (m) { return m.role === 'me'; }).slice(-3).map(function (m) { return m.text || ''; }).join(' ');
-      const dm = DIRTY_STYLE_RE.test(recentMe);
-      const mm = MOAN_STYLE_RE.test(recentMe);
-      const used = msgs.filter(function (m) { return m.local || m.intim; }).length;
-      const pools = [];
-      if (heat >= 2) {
-        if (dm && !mm) pools.push(lib.scenes.dirty || []);
-        else if (mm && !dm) pools.push(lib.scenes.moan || []);
-        else { pools.push(lib.scenes.dirty || []); pools.push(lib.scenes.moan || []); }
-        pools.push(lib.scenes.short || []);
+  /* 场景指引（不塞本地句）：做爱场景里让 API 贴着场景写，前后连贯 */
+  function sceneGuide(loverId, ctx) {
+    return store.get('scene_' + loverId, null).then(function (sc) {
+      let note = '现在你们已经在床上了，正在进行中：不许提工作、行程、巡馆、开会、吃饭这类无关的事，你写的内容只能是此刻床上的反应、动作和下流话。必须接着对方刚说的话和动作往下回应，不许自顾自另起一段。';
+      const place = sc && sc.place;
+      if (place) {
+        note += '你们此刻就在「' + place + '」里：把这里的空间、物件、声音、姿势限制、随时被撞见的紧张感揉进你的动作和下流话里，写得具体一点、长一点。';
       } else {
-        pools.push(lib.scenes.heat || []);
-        pools.push(lib.scenes.push || []);
+        note += '这条可以写长一点（几十个字），把过程写出来，长短句错落。';
       }
-      pools.push((lib.per && lib.per[persona.name]) || []);
-      const pool = pools.find(function (p) { return p.length; }) || [];
-      if (!pool.length) return ctx;
-      const line = pool[(used * 7 + 2) % pool.length];
-      const pos = used % 2 === 0 ? '开头' : '结尾';
-      let sceneNote = '';
-      if (heat >= 2) {
-        sceneNote = '现在你们已经在床上了，正在进行中：不许提工作、行程、巡馆、开会、吃饭这类无关的事，你写的内容只能是此刻床上的反应、动作和下流话。';
-        return store.get('scene_' + loverId, null).then(function (sc) {
-          const place = sc && sc.place;
-          if (place) {
-            sceneNote += '你们此刻就在「' + place + '」里：把这里的空间、物件、声音、姿势限制、随时被撞见的紧张感揉进你的动作和下流话里，写得具体一点、长一点。';
-          } else {
-            sceneNote += '这条可以写长一点（几十个字），把过程写出来，长短句错落。';
-          }
-          ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + '\n【必须原样包含】你这条回复必须以「' + line + '」' + pos + '，原样使用这句话，其余部分用你自己的话写，衔接自然。' + sceneNote;
-          return ctx;
-        });
-      }
-      ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + '\n【必须原样包含】你这条回复必须以「' + line + '」' + pos + '，原样使用这句话，其余部分用你自己的话写，衔接自然。';
+      ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + '\n【场景】' + note;
       return ctx;
-    });
-  }
-
-  /* 本地逐字打出（不调 API）：拟真快速打字。
-   * 返回的 Promise 在整段打完、入库后才 resolve——调用方（消息队列）会等它结束，
-   * 否则下一条消息会与正在进行的本地打字并发，顺序就乱了。 */
-  function localReply(loverId, persona, text) {
-    if (!text) return Promise.resolve(null); // 素材为空 → 回退 API 路径
-    const msg = { id: util.uid(), role: 'you', type: 'text', text: '', ts: Date.now(), intim: true, local: true };
-    let idx = 0;
-    let appended = false;
-    return new Promise(function (resolve) {
-      const tick = function () {
-        idx = Math.min(text.length, idx + 2 + util.randInt(0, 2));
-        msg.text = text.slice(0, idx);
-        if (!appended) {
-          appended = true;
-          store.appendMsg(loverId, msg).then(function () {
-            engine.hooks.onMsg(loverId, msg, 'append');
-          }).catch(function (e) { console.error('[localReply]', e); });
-        } else {
-          engine.hooks.onMsg(loverId, msg, 'update');
-        }
-        if (idx >= text.length) {
-          // 与 API 回复同一套收尾：追问定时、照片、裁剪、承诺提取
-          store.updateMsg(loverId, msg).catch(function (e) { console.error('[localReply]', e); }).then(function () {
-            return afterReply(loverId, persona, msg, {});
-          }).then(function () { resolve(msg); }, function () { resolve(msg); });
-          return;
-        }
-        setTimeout(tick, 90 + util.randInt(0, 80));
-      };
-      tick();
     });
   }
 
@@ -321,29 +225,19 @@
       if (!st.apiKey) throw Object.assign(new Error('先在「设置」里填入 API Key'), { noKey: true });
       const heatP = (st.intimLib !== false && !opts.noIntim) ? updateScene(loverId) : Promise.resolve(0);
       return heatP.then(function (heat) {
-        return Promise.resolve().then(function () {
-          // sex 场景回合编排：直出(短/中/长)与融合(API+强制本地句)轮换
-          if (heat >= 2) return buildSexTurn(loverId, persona);
-          return null;
-        }).then(function (done) {
-          if (done) return done;
-          return buildCtx(loverId, opts.extra).then(function (ctx) {
-            // heat=1：API 生成 + 本地素材注入
-            if (heat === 1) {
-              return pickIntimLines(loverId, persona, 1).then(function (lines) {
-                if (lines) ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + lines;
-                return ctx;
-              });
-            }
-            return ctx;
-          }).then(function (ctx) {
-            // 融合调用：同一句话既有 API 的也有本地库的（sex 融合轮次必融 / warm 一半概率融）
-            if (st.intimLib !== false) {
-              const needForce = heat >= 2 || Math.random() < 0.5;
-              if (needForce) return forceIntro(loverId, persona, ctx, heat);
-            }
-            return ctx;
-          }).then(function (ctx) {
+        return buildCtx(loverId, opts.extra).then(function (ctx) {
+          // 全部走 API 生成（用户要求：更多 API 参与，前后句逻辑连贯；不做本地直出、不强制塞本地句）
+          if (heat >= 1) {
+            return pickIntimLines(loverId, persona, heat).then(function (lines) {
+              if (lines) ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + lines;
+              return ctx;
+            }).then(function (ctx2) {
+              if (heat >= 2 && st.intimLib !== false) return sceneGuide(loverId, ctx2);
+              return ctx2;
+            });
+          }
+          return ctx;
+        }).then(function (ctx) {
             const system = prompt.buildSystem(persona, ctx);
             return store.msgs(loverId).then(function (history) {
           const messages = [{ role: 'system', content: system }].concat(prompt.buildHistory(history, st.historyN));
@@ -369,7 +263,7 @@
                 if (!state.msg) {
                   state.msg = { id: util.uid(), role: 'you', type: 'text', text: state.released, ts: Date.now() };
                   if (opts.follow) state.msg.follow = true;
-                  if (ctx.extra && (ctx.extra.indexOf('【本地素材参考】') >= 0 || ctx.extra.indexOf('【必须原样包含】') >= 0)) state.msg.intim = true;
+                  if (ctx.extra && ctx.extra.indexOf('【本地素材参考】') >= 0) state.msg.intim = true;
                   store.appendMsg(loverId, state.msg).then(function () {
                     engine.hooks.onMsg(loverId, state.msg, 'append');
                   });
@@ -446,7 +340,6 @@
       });
       });
     });
-    });
 
     function waitFinalized(state) {
       return new Promise(function (resolve, reject) {
@@ -489,22 +382,21 @@
     return Promise.all(jobs);
   }
 
-  /* 30 秒追问（仅一条）——程序化话术池，不调模型，绝对不跑偏 */
-  const FOLLOW_POOL = ['怎么不说话了', '怎么了？', '你在想什么？', '没想好吗？', '睡着了？', '人呢'];
+  /* 30 秒追问（仅一条）——走 API 生成，保证追问接得上上文 */
   function armFollowUp(loverId, persona, st) {
     clearTimeout(followTimers[loverId]);
+    const armedAt = Date.now();
     followTimers[loverId] = setTimeout(function () {
       if (!sync.get(loverId)) return; // 角色已删除：追问别再把它的聊天记录复活
       store.msgs(loverId).then(function (arr) {
         const last = arr[arr.length - 1];
         if (!last || last.role !== 'you') return; // 用户已经回过话了
         if (running[loverId]) return;
-        // 按已追问次数轮换话术，避免连续重复同一句
-        const n = arr.filter(function (m) { return m.follow; }).length;
-        const text = FOLLOW_POOL[n % FOLLOW_POOL.length];
-        const msg = { id: util.uid(), role: 'you', type: 'text', text: text, ts: Date.now(), follow: true };
-        return store.appendMsg(loverId, msg).then(function () {
-          engine.hooks.onMsg(loverId, msg, 'append');
+        enqueue(loverId, function () {
+          const sec = Math.round((Date.now() - armedAt) / 1000);
+          const extra = '对方已经' + sec + '秒没回你上一条消息。你有点在意，用你的口吻补一条简短的追问，就一条，1-2句，催他回答你刚才问的事。绝不能自问自答，绝不能替你上一条消息做解释或续写，绝不能开新话题。';
+          return streamReply(loverId, persona, { extra: extra, follow: true })
+            .catch(function (e) { console.warn('[追问失败]', e && e.message); });
         });
       });
     }, (st.followUpSec || 30) * 1000);
