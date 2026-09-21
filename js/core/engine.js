@@ -236,20 +236,21 @@
     return Promise.all(jobs);
   }
 
-  /* 30 秒追问（仅一条） */
+  /* 30 秒追问（仅一条）——程序化话术池，不调模型，绝对不跑偏 */
+  const FOLLOW_POOL = ['怎么不说话了', '怎么了？', '你在想什么？', '没想好吗？', '睡着了？', '人呢'];
   function armFollowUp(loverId, persona, st) {
     clearTimeout(followTimers[loverId]);
-    const armedAt = Date.now();
     followTimers[loverId] = setTimeout(function () {
       store.msgs(loverId).then(function (arr) {
         const last = arr[arr.length - 1];
         if (!last || last.role !== 'you') return; // 用户已经回过话了
         if (running[loverId]) return;
-        enqueue(loverId, function () {
-          const sec = Math.round((Date.now() - armedAt) / 1000);
-          const extra = '对方已经' + sec + '秒没回你上一条消息。现在只发一句最简短的追问，催他回话。用这类话术：「怎么不说话了」「怎么了？」「你在想什么？」「没想好吗？」「睡着了？」。也可以极轻地带上你刚才问的事（比如「那个问题很难回答吗」）。铁律：①绝不把你上一条的问题原样或换个说法再问一遍；②绝不自问自答、绝不替你上一条消息做解释或续写；③绝不开新话题；④就一句，越短越好。';
-          return streamReply(loverId, persona, { extra: extra, follow: true })
-            .catch(function (e) { console.warn('[追问失败]', e && e.message); });
+        // 按已追问次数轮换话术，避免连续重复同一句
+        const n = arr.filter(function (m) { return m.follow; }).length;
+        const text = FOLLOW_POOL[n % FOLLOW_POOL.length];
+        const msg = { id: util.uid(), role: 'you', type: 'text', text: text, ts: Date.now(), follow: true };
+        return store.appendMsg(loverId, msg).then(function () {
+          engine.hooks.onMsg(loverId, msg, 'append');
         });
       });
     }, (st.followUpSec || 30) * 1000);
