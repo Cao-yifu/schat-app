@@ -930,7 +930,8 @@
       "固定关系：没有女朋友，也不找别人，只有你一个。"
     ],
     "prefs": [],
-    "photoKw": "exhibition,photography,city"
+    "photoKw": "exhibition,photography,city",
+    "photoLocal": ["img/allen/01.jpg", "img/allen/02.jpg", "img/allen/03.jpg", "img/allen/04.jpg", "img/allen/05.jpg", "img/allen/06.jpg", "img/allen/07.jpg", "img/allen/08.jpg", "img/allen/09.jpg", "img/allen/10.jpg", "img/allen/11.jpg", "img/allen/12.jpg"]
   }
 
 ];
