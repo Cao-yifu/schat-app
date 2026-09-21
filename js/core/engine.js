@@ -424,16 +424,19 @@
     }).catch(function () {});
   }
 
-  /* 对方明确要照片：立刻调取一张发过去（有本地相册用本地，否则用图库） */
+  /* 对方明确要照片：立刻调取一张发过去（私密词→私密池；否则普通池；无本地相册用图库） */
   const PHOTO_REQ_RE = /(照片|自拍|拍给我|拍一张|发张|来张|发图|看看你的腿|看看腿|看看你的手|看看手|看看你的脸|看看你长|让我看看你|想看看你|看看你)/;
-  function sendPhotoNow(loverId, persona) {
+  const PHOTO_INTIM_RE = /(私密照|裸照|裸体|腿照|大腿|那话儿|你的下面|看看下面|下面给我|大不大|硬不硬|勃起|鸡巴|几把|尺寸|脱了|脱光|脱给我|露给我|色一点|骚一点|来点刺激)/;
+  function sendPhotoNow(loverId, persona, intim) {
     return engine.getSettings().then(function (st) {
       if (!st.photos) return;
-      const useLocal = !!(persona.photoLocal && persona.photoLocal.length);
+      const intimPool = intim && persona.photoIntim && persona.photoIntim.length ? persona.photoIntim : null;
+      const useLocal = intimPool || (persona.photoLocal && persona.photoLocal.length);
       if (!useLocal && !persona.photoKw) return;
       return sync.lastPhotoAt(loverId).then(function (last) {
         if (Date.now() - last < 20 * 1000) return; // 20 秒内刚发过，不再连发
-        const p = useLocal ? photos.fetchLocal(persona.photoLocal) : photos.fetchOne(persona.photoKw);
+        const p = intimPool ? photos.fetchLocal(intimPool)
+          : (useLocal ? photos.fetchLocal(persona.photoLocal) : photos.fetchOne(persona.photoKw));
         return p.then(function (dataUrl) {
           if (!dataUrl) return;
           return sync.setLastPhotoAt(loverId, Date.now()).then(function () {
@@ -488,12 +491,13 @@
         });
       }
       const msg = { id: util.uid(), role: 'me', type: 'text', text: text, ts: Date.now(), quote: quote || null };
-      const wantPhoto = PHOTO_REQ_RE.test(text);
+      const wantPhoto = PHOTO_REQ_RE.test(text) || PHOTO_INTIM_RE.test(text);
+      const wantIntim = PHOTO_INTIM_RE.test(text);
       return store.appendMsg(loverId, msg).then(function () {
         engine.hooks.onMsg(loverId, msg, 'append');
         if (wantPhoto) {
-          // 明确要照片：先自动发一张，再让 TA 文字回应（历史里能看到自己刚发了照片）
-          return sendPhotoNow(loverId, persona).then(function () {
+          // 明确要照片：先自动发一张（私密词发私密池），再让 TA 文字回应
+          return sendPhotoNow(loverId, persona, wantIntim).then(function () {
             return streamReply(loverId, persona, {}).catch(handleErr(loverId));
           });
         }
