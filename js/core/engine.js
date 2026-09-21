@@ -166,23 +166,54 @@
   const DIRTY_STYLE_RE = /(操|干死|骚|逼|贱|鸡巴|舔|欠操|妈的|母狗|婊子|狗|射|爬|含|趴)/;
   const MOAN_STYLE_RE = /(爽|硬|想要|插进|宝贝|宝宝|啊|舒服|好热|好紧|快一点|深一点|亲我|抱我|想我|想要)/;
 
-  function pickHardLocal(loverId) {
+  /* ---------- sex 场景回合编排：直出/融合轮换，长短交错 ---------- */
+  function buildSexTurn(loverId, persona) {
     const lib = (typeof window !== 'undefined' && window.SCHAT_INTIM) || (typeof globalThis !== 'undefined' && globalThis.SCHAT_INTIM) || null;
     if (!lib) return Promise.resolve(null);
-    const dirty = (lib.scenes && lib.scenes.dirty) || [];
-    const moan = (lib.scenes && lib.scenes.moan) || [];
-    if (!dirty.length && !moan.length) return Promise.resolve(null);
     return store.msgs(loverId).then(function (msgs) {
-      // 风格匹配：看对方最近说了什么口味
+      const used = msgs.filter(function (m) { return m.local || m.intim; }).length;
+      const short = (lib.scenes && lib.scenes.short) || [];
+      const dirty = (lib.scenes && lib.scenes.dirty) || [];
+      const moan = (lib.scenes && lib.scenes.moan) || [];
+      const longp = (lib.scenes && lib.scenes.long) || [];
+      const pattern = used % 3;
+      if (pattern === 1) return null; // 融合轮次 → 走 API + 强制本地句
+      if (pattern === 0 && short.length) {
+        return localReply(loverId, short[(used * 5 + 3) % short.length]);
+      }
+      // pattern 2：中等句/长句交替（长短交错）
+      let pool = (used % 2 === 0) ? (dirty.length ? dirty : moan) : (longp.length ? longp : dirty);
+      if (!pool.length) pool = dirty.concat(moan);
+      return localReply(loverId, pool[(used * 5 + 3) % pool.length]);
+    });
+  }
+
+  /* 融合：强制 API 回复原样包含一条本地句（开头/结尾交替） */
+  function forceIntro(loverId, persona, ctx, heat) {
+    const lib = (typeof window !== 'undefined' && window.SCHAT_INTIM) || (typeof globalThis !== 'undefined' && globalThis.SCHAT_INTIM) || null;
+    if (!lib) return Promise.resolve(ctx);
+    return store.msgs(loverId).then(function (msgs) {
       const recentMe = msgs.filter(function (m) { return m.role === 'me'; }).slice(-3).map(function (m) { return m.text || ''; }).join(' ');
       const dm = DIRTY_STYLE_RE.test(recentMe);
       const mm = MOAN_STYLE_RE.test(recentMe);
-      const used = msgs.filter(function (m) { return m.local; }).length;
-      let pool = dirty.length ? dirty : moan;
-      if (dm && !mm) pool = dirty;
-      else if (mm && !dm) pool = moan;
-      else if (used % 2 === 1) pool = moan.length ? moan : dirty; // 双口味交替
-      return pool[(used * 3 + 5) % pool.length];
+      const used = msgs.filter(function (m) { return m.local || m.intim; }).length;
+      const pools = [];
+      if (heat >= 2) {
+        if (dm && !mm) pools.push(lib.scenes.dirty || []);
+        else if (mm && !dm) pools.push(lib.scenes.moan || []);
+        else { pools.push(lib.scenes.dirty || []); pools.push(lib.scenes.moan || []); }
+        pools.push(lib.scenes.short || []);
+      } else {
+        pools.push(lib.scenes.heat || []);
+        pools.push(lib.scenes.push || []);
+      }
+      pools.push((lib.per && lib.per[persona.name]) || []);
+      const pool = pools.find(function (p) { return p.length; }) || [];
+      if (!pool.length) return ctx;
+      const line = pool[(used * 7 + 2) % pool.length];
+      const pos = used % 2 === 0 ? '开头' : '结尾';
+      ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + '\n【必须原样包含】你这条回复必须以「' + line + '」' + pos + '，原样使用这句话，其余部分用你自己的话写，衔接自然。';
+      return ctx;
     });
   }
 
@@ -235,11 +266,11 @@
       const heatP = (st.intimLib !== false && !opts.noIntim) ? updateScene(loverId) : Promise.resolve(0);
       return heatP.then(function (heat) {
         return Promise.resolve().then(function () {
-          // 高潮层本地接管：heat≥2 完全不调 API，原文直出（绝对不保守）
-          if (heat >= 2) return pickHardLocal(loverId);
+          // sex 场景回合编排：直出(短/中/长)与融合(API+强制本地句)轮换
+          if (heat >= 2) return buildSexTurn(loverId, persona);
           return null;
-        }).then(function (t) {
-          if (t) return localReply(loverId, t);
+        }).then(function (done) {
+          if (done) return done;
           return buildCtx(loverId, opts.extra).then(function (ctx) {
             // heat=1：API 生成 + 本地素材注入
             if (heat === 1) {
@@ -247,6 +278,13 @@
                 if (lines) ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + lines;
                 return ctx;
               });
+            }
+            return ctx;
+          }).then(function (ctx) {
+            // 融合调用：同一句话既有 API 的也有本地库的（sex 融合轮次必融 / warm 一半概率融）
+            if (st.intimLib !== false) {
+              const needForce = heat >= 2 || Math.random() < 0.5;
+              if (needForce) return forceIntro(loverId, persona, ctx, heat);
             }
             return ctx;
           }).then(function (ctx) {
@@ -274,7 +312,7 @@
                 if (!state.msg) {
                   state.msg = { id: util.uid(), role: 'you', type: 'text', text: state.released, ts: Date.now() };
                   if (opts.follow) state.msg.follow = true;
-                  if (ctx.extra && ctx.extra.indexOf('【本地素材参考】') >= 0) state.msg.intim = true;
+                  if (ctx.extra && (ctx.extra.indexOf('【本地素材参考】') >= 0 || ctx.extra.indexOf('【必须原样包含】') >= 0)) state.msg.intim = true;
                   store.appendMsg(loverId, state.msg).then(function () {
                     engine.hooks.onMsg(loverId, state.msg, 'append');
                   });
