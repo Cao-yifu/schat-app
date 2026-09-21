@@ -17,6 +17,7 @@
       return new Promise(function (resolve, reject) {
         const img = new Image();
         img.onload = function () {
+          let out = null;
           try {
             const MAX = 640;
             let w = img.width, h = img.height;
@@ -26,10 +27,15 @@
             const ctx = cv.getContext('2d');
             if (!ctx) { resolve(null); return; } // jsdom 无 canvas：测试环境直接跳过
             ctx.drawImage(img, 0, 0, w, h);
-            resolve(cv.toDataURL('image/jpeg', 0.72));
-          } catch (e) { resolve(null); }
+            out = cv.toDataURL('image/jpeg', 0.72);
+          } catch (e) { out = null; }
+          if (img.src && img.src.indexOf('blob:') === 0) URL.revokeObjectURL(img.src); // 用完即释放，避免 blob 堆积
+          resolve(out);
         };
-        img.onerror = function () { resolve(null); };
+        img.onerror = function () {
+          if (img.src && img.src.indexOf('blob:') === 0) URL.revokeObjectURL(img.src);
+          resolve(null);
+        };
         img.src = URL.createObjectURL(blob);
       });
     }).catch(function () { return null; });
