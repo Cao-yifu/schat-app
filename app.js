@@ -1887,7 +1887,10 @@ function fillSettings(box) {
     if (dataUrl) { s.myAvatarImg = dataUrl; save(); setAva(avaMine, s.myAvatarImg, s.myAvatar, '#6B9F6E'); }
   });
   const bMclr = el('button', 'mini-btn', '恢复默认');
-  bMclr.onclick = () => { s.myAvatarImg = ''; s._myAvatarCleared = true; save(); setAva(avaMine, null, s.myAvatar, '#6B9F6E'); };
+  bMclr.onclick = () => {
+    if (!confirm('确定恢复默认头像？你上传的自定义头像会被删除。')) return;
+    s.myAvatarImg = ''; s._myAvatarCleared = true; save(); setAva(avaMine, null, s.myAvatar, '#6B9F6E');
+  };
   f0.appendChild(avaMine); f0.appendChild(bMup); f0.appendChild(bMclr);
   cb0.appendChild(f0);
   d0.appendChild(cb0);
