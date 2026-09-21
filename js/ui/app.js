@@ -29,7 +29,8 @@
   ui.toast = toast;
 
   function avatarHtml(p, cls) {
-    if (p.avatar) return '<div class="' + cls + '"><img src="' + p.avatar + '" alt=""></div>';
+    // 头像只认 data:image，防止脏数据走 src 属性注入
+    if (p.avatar && p.avatar.indexOf('data:image/') === 0) return '<div class="' + cls + '"><img src="' + p.avatar + '" alt=""></div>';
     return '<div class="' + cls + '" style="background:' + (p.avatarColor || '#8AA88F') + '">' + esc(p.name[0]) + '</div>';
   }
 
@@ -41,7 +42,6 @@
 
   function sheet(id, show) {
     $(id).classList.toggle('show', show);
-    $('mask' + id.slice(5) === undefined ? '' : '');
     // 遮罩配对：sheetMsg -> maskSheet, sheetChat -> maskChat
     const mask = id === 'sheetMsg' ? $('maskSheet') : id === 'sheetChat' ? $('maskChat') : null;
     if (mask) mask.classList.toggle('show', show);
@@ -53,7 +53,7 @@
       const m = msgs[i];
       if (m.role === 'sys') continue;
       if (m.type === 'image') return '[图片]';
-      return (m.role === 'me' ? '' : '') + (m.text || '').slice(0, 40);
+      return (m.text || '').slice(0, 40);
     }
     return '开始聊天吧';
   }
@@ -62,33 +62,32 @@
     const list = sync.list();
     const box = $('homeList');
     $('verLine').textContent = 'Schat v2 · 人设版本 v' + (window.SCHAT_PERSONAS_VER || '?') + ' · 数据只存在这台设备上';
-    let chain = Promise.resolve();
     box.innerHTML = '';
-    for (const persona of list) {
-      (function (item) {
-        chain = chain.then(function () {
-          return Promise.all([store.msgs(item.id), sync.unread(item.id)]);
-        }).then(function (r) {
-          const msgs = r[0], unread = r[1] || 0;
-          const last = msgs[msgs.length - 1];
-          const row = document.createElement('div');
-          row.className = 'row';
-          row.innerHTML =
-            avatarHtml(item, 'avatar') +
-            '<div class="mid"><div class="nm">' + esc(item.nickname || item.name) + '</div>' +
-            '<div class="pv">' + esc(previewOf(msgs)) + '</div></div>' +
-            '<div class="tm">' + (last ? esc(util.listTime(last.ts)) : '') + '</div>';
-          const dot = document.createElement('span');
-          dot.className = 'udot';
-          dot.style.display = unread > 0 ? 'block' : 'none';
-          row.querySelector('.avatar').appendChild(dot);
-          row.addEventListener('click', function () { openChat(item.id); });
-          box.appendChild(row);
-        });
-      })(persona);
-    }
-    return chain;
+    // 并发读取每个角色的最新消息，全部就绪后按列表顺序一次性插入（顺序稳定且首屏更快）
+    return Promise.all(list.map(function (item) {
+      return Promise.all([store.msgs(item.id), sync.unread(item.id)]).then(function (r) {
+        const msgs = r[0], unread = r[1] || 0;
+        const last = msgs[msgs.length - 1];
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML =
+          avatarHtml(item, 'avatar') +
+          '<div class="mid"><div class="nm">' + esc(item.nickname || item.name) + '</div>' +
+          '<div class="pv">' + esc(previewOf(msgs)) + '</div></div>' +
+          '<div class="tm">' + (last ? esc(util.listTime(last.ts)) : '') + '</div>';
+        const dot = document.createElement('span');
+        dot.className = 'udot';
+        dot.style.display = unread > 0 ? 'block' : 'none';
+        row.querySelector('.avatar').appendChild(dot);
+        row.addEventListener('click', function () { openChat(item.id); });
+        return row;
+      });
+    })).then(function (rows) {
+      for (const row of rows) box.appendChild(row);
+    });
   }
+  /* 流式打字期间每 100ms 一次 onMsg，列表重渲染必须防抖，否则每 tick 全员读库 */
+  const refreshListSoon = util.debounce(function () { renderList(); }, 300);
   ui.refreshList = function () { renderList(); };
 
   /* ---------- 聊天页 ---------- */
@@ -107,8 +106,11 @@
     if (msg.quote && msg.quote.text) {
       inner += '<div class="qq">' + esc((msg.quote.who === 'me' ? '我：' : (persona.nickname || persona.name) + '：') + msg.quote.text.slice(0, 80)) + '</div>';
     }
-    if (msg.type === 'image' && msg.src) {
-      inner += '<img class="ph" src="' + msg.src + '" alt="照片">';
+    if (msg.type === 'image') {
+      // 照片只渲染本地 dataURL，脏 src 走文本兜底（防属性注入）
+      inner += (msg.src && msg.src.indexOf('data:image/') === 0)
+        ? '<img class="ph" src="' + msg.src + '" alt="照片">'
+        : esc('[图片]');
     } else {
       inner += esc(msg.text || '');
     }
@@ -297,7 +299,7 @@
       }
       scrollBottom(false);
     }
-    renderList();
+    refreshListSoon(); // 防抖：打字 tick 太密，逐条渲染列表会每 100ms 全员读库
   };
   engine.hooks.onTyping = function (loverId, on) {
     if (loverId === currentLover) showTyping(on);
@@ -519,7 +521,8 @@
             if (typeof indexedDB !== 'undefined' && indexedDB.deleteDatabase) {
               try { indexedDB.deleteDatabase('schat-v2'); } catch (e) {}
             }
-            localStorage.clear();
+            // GitHub Pages 源站与所有仓库共享 localStorage，绝不能 clear() 殃及其他项目
+            try { localStorage.removeItem(store.LS_KEY || 'schat-v2-store'); } catch (e) {}
             location.reload();
           });
       });
@@ -548,7 +551,7 @@
     $('homeSetBtn').addEventListener('click', function () { buildSettings(); showPage('page-set'); });
     $('homeHelpBtn').addEventListener('click', function () { buildHelp(); showPage('page-help'); });
     $('setBackBtn').addEventListener('click', function () { showPage('page-home'); renderList(); });
-    $('helpBackBtn').addEventListener('click', function () { showPage(lastRenderKey === 'page-help' ? 'page-home' : 'page-home'); });
+    $('helpBackBtn').addEventListener('click', function () { showPage('page-home'); });
     $('profileBackBtn').addEventListener('click', function () { showPage('page-chat'); });
     $('onboardOk').addEventListener('click', function () {
       $('onboard').classList.remove('show');
