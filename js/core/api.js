@@ -28,7 +28,23 @@
     if (opts.maxTokens) body.max_tokens = opts.maxTokens;
 
     let full = '';
-    let lastTokenAt = Date.now();
+    /* 停滞看门狗：60 秒没有任何数据（含响应头、含 token）就中止连接。
+     * 旧实现只在收到数据块时检查时间戳，连接彻底挂起时永远不会触发。 */
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    if (ctrl && opts.signal) {
+      if (opts.signal.aborted) ctrl.abort();
+      else opts.signal.addEventListener('abort', function () { ctrl.abort(); });
+    }
+    let stallTimer = null, stalled = false;
+    function armStall() {
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(function () { stalled = true; if (ctrl) ctrl.abort(); }, 60000);
+    }
+    function clearStall() {
+      if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; }
+    }
+    armStall();
+
     return fetch(url, {
       method: 'POST',
       headers: {
@@ -36,9 +52,14 @@
         'Authorization': 'Bearer ' + opts.apiKey,
       },
       body: JSON.stringify(body),
-      signal: opts.signal,
+      signal: ctrl ? ctrl.signal : opts.signal,
+    }).catch(function (err) {
+      if (stalled) { const e = new Error('响应超时'); e.timeout = true; throw e; }
+      throw err;
     }).then(function (resp) {
+      armStall(); // 响应头已到，给首个 token 重新计 60 秒
       if (!resp.ok) {
+        clearStall();
         return resp.text().then(function (t) {
           let msg = 'HTTP ' + resp.status;
           try { msg = JSON.parse(t).error.message || msg; } catch (e) { if (t) msg = t.slice(0, 200); }
@@ -50,6 +71,7 @@
       if (!resp.body || !resp.body.getReader) {
         // 极个别环境没有流式 body：整体读
         return resp.text().then(function (t) {
+          clearStall();
           const m = t.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
           if (m) { full = JSON.parse('"' + m[1] + '"'); if (opts.onToken) opts.onToken(full); }
           return full;
@@ -60,8 +82,8 @@
       let buf = '';
       function pump() {
         return reader.read().then(function (r) {
-          if (r.done) return full;
-          lastTokenAt = Date.now();
+          if (r.done) { clearStall(); return full; }
+          armStall();
           buf += dec.decode(r.value, { stream: true });
           const lines = buf.split('\n');
           buf = lines.pop();
@@ -77,16 +99,10 @@
               if (piece) { full += piece; if (opts.onToken) opts.onToken(piece); }
             } catch (e) { /* 半包 JSON，忽略 */ }
           }
-          // 超过 60 秒没有任何 token 视为卡死
-          if (Date.now() - lastTokenAt > 60000) {
-            const err = new Error('响应超时');
-            err.timeout = true;
-            throw err;
-          }
           return pump();
         });
       }
-      function finish() { return full; }
+      function finish() { clearStall(); return full; }
       return pump();
     });
   };
