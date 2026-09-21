@@ -92,23 +92,48 @@
   const INTIM_HINTS = /(想你|想要|亲我|抱我|吻|脱|床上|今晚|过来|忍不住|硬了|湿了|进来|深一点|快一点|受不了|轻点|抱紧|别停|舒服|要你|睡你|上你|含住|顶|插|骑|坐上来|腿|腰|呼吸|喘|咬|舔|呻吟|高潮|射|里面|全部给我|趴好|自己动|求我|别躲|别跑|别忍|出声|叫出来|操你|干死|鸡巴|骚逼|骚货|贱货|欠操|妈的|母狗|小婊子|爽死|插进|舔我|射了|叫老公|爬过来|夹得|吸得|好热|好紧|宝贝|宝宝)/;
   const INTIM_STRONG = /(硬了|湿了|进来|深一点|受不了|别停|顶|插|骑|坐上来|呻吟|高潮|射|含住|里面|自己动|求我|叫出来|出声|别忍|趴好|操你|干死|鸡巴|骚逼|贱货|欠操|妈的|母狗|爽死|插进|舔我|射了|叫老公|爬过来)/;
 
-  function detectHeat(loverId, lastUserText) {
+  /* ---------- 场景状态机：事件驱动触发（不是关键词驱动） ----------
+   * normal(日常) → warm(暧昧,注入素材) → sex(做爱,本地直出)
+   * 进入 sex 后：嗯/快点/继续等短回应与氛围词都维持高热；
+   * 只有明确话题切换（明天/开会/吃饭等日常话题）才冷却。45分钟无互动自动重置。 */
+  const AMBIENT_RE = /(嗯|啊|继续|快点|别停|再深|再快|爽|用力|抱|亲|要|给|干|弄|叫|舒服|对|就这样|别动|转过来|趴|上来|下去|射|出来|接着|轻点|慢点|重点|腿|腰|里面|顶|含|张|硬|湿|高潮|到了|再来|想|好舒服|好爽|好热|好紧|快点呀|快点啊|更深|别出来|快点射|操|痒|酥|麻)/;
+  const TOPIC_RE = /(明天|开会|工作|上班|加班|吃饭|吃了吗|天气|回家|到家|睡觉|晚安|早安|忙|出差|项目|客户|合同|学校|上课|考试|家人|爸妈|朋友|逛街|买|电影|下班|老板|同事|房租|钱|账单|医院|挂号|写作业|论文|答辩|简历|面试)/;
+
+  function updateScene(loverId) {
     return store.msgs(loverId).then(function (msgs) {
       const meMsgs = msgs.filter(function (m) { return m.role === 'me'; });
-      const lastMe = meMsgs.length ? (meMsgs[meMsgs.length - 1].text || '') : (lastUserText || '');
-      const lastMeHits = (lastMe.match(INTIM_HINTS) || []).length;
-      // 最新一条回归日常 → 立即冷却（热惯性根治）
-      if (!lastMeHits) return 0;
-      // 最新一条露骨 → 直接接管
-      if (INTIM_STRONG.test(lastMe)) return 2;
-      // 累积热度：最近6条关键词总命中
-      const recent = msgs.slice(-6);
-      let hits = 0;
-      for (const m of recent) {
-        const mm = (m.text || '').match(INTIM_HINTS);
-        if (mm) hits += mm.length;
-      }
-      return hits >= 4 ? 2 : 1;
+      const lastMe = meMsgs.length ? (meMsgs[meMsgs.length - 1].text || '') : '';
+      return store.get('scene_' + loverId, null).then(function (sc) {
+        let mode = (sc && sc.mode) || 'normal';
+        const nowTs = Date.now();
+        if (sc && (nowTs - sc.ts > 45 * 60 * 1000)) { mode = 'normal'; sc = null; } // 45分钟无互动重置
+
+        const hasStrong = INTIM_STRONG.test(lastMe);
+        const hasTrig = INTIM_HINTS.test(lastMe);
+        const hasAmb = AMBIENT_RE.test(lastMe);
+        const hasTopic = TOPIC_RE.test(lastMe);
+
+        if (mode === 'sex') {
+          // 做爱场景：短回应/氛围词/暧昧词都维持高热；只有明确日常话题才退出
+          if (hasTopic && !hasTrig && !hasStrong && !hasAmb) mode = 'normal';
+          else if (hasTopic && !hasStrong && lastMe.length > 10) mode = 'warm';
+          else mode = 'sex';
+        } else if (mode === 'warm') {
+          if (hasStrong) mode = 'sex';
+          else if (hasTrig || hasAmb) mode = 'warm';
+          else if (hasTopic && !hasAmb) mode = 'normal';
+          else mode = 'warm';
+        } else {
+          if (hasStrong) mode = 'sex';
+          else if (hasTrig) mode = 'warm';
+          else mode = 'normal';
+        }
+
+        const heat = mode === 'sex' ? 2 : (mode === 'warm' ? 1 : 0);
+        return store.set('scene_' + loverId, { mode: mode, ts: nowTs }).then(function () {
+          return heat;
+        });
+      });
     });
   }
 
@@ -207,7 +232,7 @@
     opts = opts || {};
     return engine.getSettings().then(function (st) {
       if (!st.apiKey) throw Object.assign(new Error('先在「设置」里填入 API Key'), { noKey: true });
-      const heatP = (st.intimLib !== false && !opts.noIntim) ? detectHeat(loverId, null) : Promise.resolve(0);
+      const heatP = (st.intimLib !== false && !opts.noIntim) ? updateScene(loverId) : Promise.resolve(0);
       return heatP.then(function (heat) {
         return Promise.resolve().then(function () {
           // 高潮层本地接管：heat≥2 完全不调 API，原文直出（绝对不保守）
