@@ -89,19 +89,26 @@
   }
 
   /* ---------- 本地亲密素材：语境检测 + 轮换抽取（不占 API，注入提示词做"语言血液"） ---------- */
-  const INTIM_HINTS = /(想你|想要|亲我|抱我|吻|脱|床上|今晚|过来|忍不住|硬了|湿了|进来|深一点|快一点|受不了|轻点|抱紧|别停|舒服|要你|睡你|上你|含住|顶|插|骑|坐上来|腿|腰|呼吸|喘|咬|舔|呻吟|高潮|射|里面|全部给我|趴好|自己动|求我|别躲|别跑|别忍|出声|叫出来)/;
-  const INTIM_STRONG = /(硬了|湿了|进来|深一点|受不了|别停|顶|插|骑|坐上来|呻吟|高潮|射|含住|里面|自己动|求我|叫出来|出声|别忍|趴好)/;
+  const INTIM_HINTS = /(想你|想要|亲我|抱我|吻|脱|床上|今晚|过来|忍不住|硬了|湿了|进来|深一点|快一点|受不了|轻点|抱紧|别停|舒服|要你|睡你|上你|含住|顶|插|骑|坐上来|腿|腰|呼吸|喘|咬|舔|呻吟|高潮|射|里面|全部给我|趴好|自己动|求我|别躲|别跑|别忍|出声|叫出来|操你|干死|鸡巴|骚逼|骚货|贱货|欠操|妈的|母狗|小婊子|爽死|插进|舔我|射了|叫老公|爬过来|夹得|吸得|好热|好紧|宝贝|宝宝)/;
+  const INTIM_STRONG = /(硬了|湿了|进来|深一点|受不了|别停|顶|插|骑|坐上来|呻吟|高潮|射|含住|里面|自己动|求我|叫出来|出声|别忍|趴好|操你|干死|鸡巴|骚逼|贱货|欠操|妈的|母狗|爽死|插进|舔我|射了|叫老公|爬过来)/;
 
   function detectHeat(loverId, lastUserText) {
     return store.msgs(loverId).then(function (msgs) {
-      if (INTIM_STRONG.test(lastUserText || '')) return 2;
+      const meMsgs = msgs.filter(function (m) { return m.role === 'me'; });
+      const lastMe = meMsgs.length ? (meMsgs[meMsgs.length - 1].text || '') : (lastUserText || '');
+      const lastMeHits = (lastMe.match(INTIM_HINTS) || []).length;
+      // 最新一条回归日常 → 立即冷却（热惯性根治）
+      if (!lastMeHits) return 0;
+      // 最新一条露骨 → 直接接管
+      if (INTIM_STRONG.test(lastMe)) return 2;
+      // 累积热度：最近6条关键词总命中
       const recent = msgs.slice(-6);
       let hits = 0;
       for (const m of recent) {
         const mm = (m.text || '').match(INTIM_HINTS);
         if (mm) hits += mm.length;
       }
-      return hits >= 5 ? 2 : hits >= 2 ? 1 : 0;
+      return hits >= 4 ? 2 : 1;
     });
   }
 
@@ -130,6 +137,56 @@
     });
   }
 
+  /* ---------- 高潮层本地直出：heat≥2 完全不调 API ---------- */
+  const DIRTY_STYLE_RE = /(操|干死|骚|逼|贱|鸡巴|舔|欠操|妈的|母狗|婊子|狗|射|爬|含|趴)/;
+  const MOAN_STYLE_RE = /(爽|硬|想要|插进|宝贝|宝宝|啊|舒服|好热|好紧|快一点|深一点|亲我|抱我|想我|想要)/;
+
+  function pickHardLocal(loverId) {
+    const lib = (typeof window !== 'undefined' && window.SCHAT_INTIM) || (typeof globalThis !== 'undefined' && globalThis.SCHAT_INTIM) || null;
+    if (!lib) return Promise.resolve(null);
+    const dirty = (lib.scenes && lib.scenes.dirty) || [];
+    const moan = (lib.scenes && lib.scenes.moan) || [];
+    if (!dirty.length && !moan.length) return Promise.resolve(null);
+    return store.msgs(loverId).then(function (msgs) {
+      // 风格匹配：看对方最近说了什么口味
+      const recentMe = msgs.filter(function (m) { return m.role === 'me'; }).slice(-3).map(function (m) { return m.text || ''; }).join(' ');
+      const dm = DIRTY_STYLE_RE.test(recentMe);
+      const mm = MOAN_STYLE_RE.test(recentMe);
+      const used = msgs.filter(function (m) { return m.local; }).length;
+      let pool = dirty.length ? dirty : moan;
+      if (dm && !mm) pool = dirty;
+      else if (mm && !dm) pool = moan;
+      else if (used % 2 === 1) pool = moan.length ? moan : dirty; // 双口味交替
+      return pool[(used * 3 + 5) % pool.length];
+    });
+  }
+
+  /* 本地逐字打出（不调 API）：拟真快速打字 */
+  function localReply(loverId, text) {
+    const msg = { id: util.uid(), role: 'you', type: 'text', text: '', ts: Date.now(), intim: true, local: true };
+    let idx = 0;
+    let appended = false;
+    const tick = function () {
+      idx = Math.min(text.length, idx + 2 + util.randInt(0, 2));
+      msg.text = text.slice(0, idx);
+      if (!appended) {
+        store.appendMsg(loverId, msg).then(function () {
+          engine.hooks.onMsg(loverId, msg, 'append');
+        });
+        appended = true;
+      } else {
+        engine.hooks.onMsg(loverId, msg, 'update');
+      }
+      if (idx >= text.length) {
+        store.updateMsg(loverId, msg);
+        return;
+      }
+      setTimeout(tick, 90 + util.randInt(0, 80));
+    };
+    tick();
+    return Promise.resolve(msg);
+  }
+
   /* 组装动态层 ctx */
   function buildCtx(loverId, extra) {
     return Promise.all([
@@ -150,21 +207,26 @@
     opts = opts || {};
     return engine.getSettings().then(function (st) {
       if (!st.apiKey) throw Object.assign(new Error('先在「设置」里填入 API Key'), { noKey: true });
-      return buildCtx(loverId, opts.extra).then(function (ctx) {
-        // 本地亲密素材注入（设置可关；追问等程序化消息不注入）
-        if (st.intimLib !== false && !opts.noIntim) {
-          return detectHeat(loverId, null).then(function (heat) {
-            if (heat < 1) return null;
-            return pickIntimLines(loverId, persona, heat);
-          }).then(function (lines) {
-            if (lines) ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + lines;
+      const heatP = (st.intimLib !== false && !opts.noIntim) ? detectHeat(loverId, null) : Promise.resolve(0);
+      return heatP.then(function (heat) {
+        return Promise.resolve().then(function () {
+          // 高潮层本地接管：heat≥2 完全不调 API，原文直出（绝对不保守）
+          if (heat >= 2) return pickHardLocal(loverId);
+          return null;
+        }).then(function (t) {
+          if (t) return localReply(loverId, t);
+          return buildCtx(loverId, opts.extra).then(function (ctx) {
+            // heat=1：API 生成 + 本地素材注入
+            if (heat === 1) {
+              return pickIntimLines(loverId, persona, 1).then(function (lines) {
+                if (lines) ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + lines;
+                return ctx;
+              });
+            }
             return ctx;
-          });
-        }
-        return ctx;
-      }).then(function (ctx) {
-        const system = prompt.buildSystem(persona, ctx);
-        return store.msgs(loverId).then(function (history) {
+          }).then(function (ctx) {
+            const system = prompt.buildSystem(persona, ctx);
+            return store.msgs(loverId).then(function (history) {
           const messages = [{ role: 'system', content: system }].concat(prompt.buildHistory(history, st.historyN));
           const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
           const state = running[loverId] = {
@@ -262,6 +324,8 @@
           });
         });
       });
+      });
+    });
     });
 
     function waitFinalized(state) {
