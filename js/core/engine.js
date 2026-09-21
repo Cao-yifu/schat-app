@@ -406,11 +406,14 @@
   /* 偶尔发生活照 */
   function maybePhoto(loverId, persona) {
     return engine.getSettings().then(function (st) {
-      if (!st.photos || !persona.photoKw) return;
+      if (!st.photos) return;
+      const useLocal = !!(persona.photoLocal && persona.photoLocal.length);
+      if (!useLocal && !persona.photoKw) return;
       return sync.lastPhotoAt(loverId).then(function (last) {
         if (Date.now() - last < 10 * 60 * 1000) return;
         if (Math.random() > 0.16) return;
-        return photos.fetchOne(persona.photoKw).then(function (dataUrl) {
+        const p = useLocal ? photos.fetchLocal(persona.photoLocal) : photos.fetchOne(persona.photoKw);
+        return p.then(function (dataUrl) {
           if (!dataUrl) return;
           return sync.setLastPhotoAt(loverId, Date.now()).then(function () {
             const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: dataUrl, ts: Date.now() };
