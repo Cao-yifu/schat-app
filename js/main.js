@@ -26,7 +26,8 @@
       .then(function () { return app.sync.boot(); })
       .then(function () {
         app.ui.bootUi();
-        window.setInterval(app.engine.tick, 15000);
+        app.engine.lifeTick();
+        window.setInterval(function () { app.engine.lifeTick(); }, 30 * 60 * 1000);
       })
       .catch(function (err) {
         console.error('[Schat] 启动失败', err);
