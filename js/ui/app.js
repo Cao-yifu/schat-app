@@ -256,7 +256,6 @@
     $('chatName').textContent = persona.nickname || persona.name;
     showPage('page-chat');
     renderChat(persona).then(function () {
-      engine.maybeGreet(loverId);
       renderList();
     });
   }
@@ -462,6 +461,7 @@
         fld('最长回复字数（硬截断）', 'setMax', st.maxChars, '默认 400；平时 TA 只回 1-2 句，只有你要细节才写长') +
         fld('打字速度（字/秒）', 'setCps', st.cps, '默认 10') +
         switchRow('followUp', '30 秒追问', '你 30 秒没回，TA 按人设追问一条（只一条）', st.followUp) +
+        switchRow('lifeGreet', '日常主动问候', '隔一两天，TA 按作息自己发来消息（如问你在干嘛）', st.lifeGreet) +
         fld('追问间隔（秒）', 'setFollowSec', st.followUpSec, '默认 30') +
         switchRow('photos', '生活照', 'TA 偶尔发生活照（免费图库，发出即转存本地）', st.photos) +
         fld('每人保留消息条数', 'setKeep', st.keepN, '默认 300，超出自动裁掉最早的') +
@@ -501,6 +501,7 @@
       $('setKeep').addEventListener('change', function () { save({ keepN: num(this.value, 300, 50, 1000) }, '已保存'); });
       $('setHist').addEventListener('change', function () { save({ historyN: num(this.value, 60, 10, 120) }, '已保存'); });
       $('sw_followUp').addEventListener('change', function () { save({ followUp: this.checked }, '已保存'); });
+      $('sw_lifeGreet').addEventListener('change', function () { save({ lifeGreet: this.checked }, '已保存'); });
       $('sw_photos').addEventListener('change', function () { save({ photos: this.checked }, '已保存'); });
       $('wipeBtn').addEventListener('click', function () {
         if (!confirm('确定清空全部数据？聊天记录、设定、API Key 都会消失，不可恢复。')) return;
@@ -528,7 +529,7 @@
       '</div></div>' +
       '<div class="card"><div class="ct">节奏</div><div class="cb">' +
       '<div class="lirow">· 回复中点「停止」可中断。</div>' +
-      '<div class="lirow">· TA 说过「20分钟后到」这类明确时间约定会被自动记住，到点会主动兑现；比喻和梦话不会被当成约定。</div>' +
+      '<div class="lirow">· 开启日常主动问候后，TA 偶尔会按作息自然地想起你并发来消息。</div>' +
       '<div class="lirow">· 短暂退出聊天不会丢消息，全在本地。</div>' +
       '</div></div>' +
       '<div class="card"><div class="ct">关于</div><div class="cb"><div class="lirow">Schat v2 · 人设版本 v' + (window.SCHAT_PERSONAS_VER || '?') + '<br>纯静态 PWA · 数据全本地 · 直连你自填的 OpenAI 兼容接口。</div></div></div>';
