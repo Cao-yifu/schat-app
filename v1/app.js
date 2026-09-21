@@ -1,0 +1,2210 @@
+/* Schat —— 秘密情人 · 主逻辑 */
+'use strict';
+
+/* ================= 存储 ================= */
+const K = 'schat_db_v1';
+const DEFAULT_ME_AVA = "data:image/jpeg;base64,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";
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, txt) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (txt !== undefined) e.textContent = txt;
+  return e;
+};
+
+let DB = null;
+let cur = null;            // 当前情人 id
+let streaming = false;
+let abortCtrl = null;
+let quote = null;          // 当前引用的消息 {r, c, mref}
+let returnTab = null;      // 从详情页进聊天时，返回键回到哪个标签页
+
+/* 规则升级：旧规则文本 → 新规则文本（迁移用） */
+const RULE_NATURAL = '长度自然：平常回短句（1-3句），情绪浓烈、情到深处、对方想听细节时放开来写，300-800字都正常。长短交错才像真人。绝不换行、绝不分段，一条回复就是连续的一段。';
+const RULE_FIX = [
+  ['不主动终止聊天，不主动说“睡了”，不主动说“我爱你”，不定义你们的关系。',
+   '绝不主动终止聊天、绝不主动说“睡了”“去忙了”“改天聊”“明天再说”这类结束或推后的暗示。只要对方还在说话，你就陪着。'],
+  ['逼问他关系，他就“你猜”“别多想”“走了”。',
+   '逼问他关系，他就“你猜”“别多想”“走了”，但别把回避当万能挡箭牌。'],
+  ['回复必须短：最多3句，每句不超过30字。绝不写长篇大论、绝不重复同一句话、绝不逐句解释。说完就停。', RULE_NATURAL],
+  ['回复必须短：最多3句，每句不超过30字。绝不写长篇大论、绝不重复。说完就停。', RULE_NATURAL]
+];
+
+function loadDB() {
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(K) || 'null'); } catch (e) { raw = null; }
+  if (!raw || !Array.isArray(raw.personas)) raw = { personas: [], settings: {} };
+  raw.settings = Object.assign({
+    key: '', base: 'https://api.deepseek.com', model: 'deepseek-chat',
+    temp: 0.8, maxHist: 400, maxReply: 150, imgOn: true, followOn: true, followDelay: 30, remindOn: true, onboardDone: false, myAvatar: '我', myAvatarImg: ''
+  }, raw.settings || {});
+  DB = raw;
+  // 温度防发散：旧默认0.9 → 0.8（用户手动改过的不动）
+  if (DB.settings.temp === 0.9 && !DB.settings.tempV2) {
+    DB.settings.temp = 0.8;
+    DB.settings.tempV2 = true;
+  }
+  // 迁移：默认我的头像（用户主动清空过则不再恢复）
+  if (!raw.settings.myAvatarImg && !raw.settings._myAvatarCleared) raw.settings.myAvatarImg = DEFAULT_ME_AVA;
+  // 长度策略：默认收紧为150（旧值800自动降回；用户以后想放宽可在设置里改）
+  if (!DB.settings.maxReplyV3) {
+    DB.settings.maxReply = Math.min(Number(DB.settings.maxReply) || 150, 150);
+    DB.settings.maxReplyV3 = true;
+  }
+  // 一次性历史清洗：截掉历史里的超长回复，打破"长回复先例"自我模仿
+  if (!DB.settings.histScrubV1) {
+    DB.personas.forEach(p => {
+      p.msgs.forEach(m => { if (m.r === 'a' && m.c && m.c.length > 200) m.c = m.c.slice(0, 200); });
+    });
+    DB.settings.histScrubV1 = true;
+  }
+  // 一次性修复：清洗所有角色历史里泄漏的「内部指令」残片（追问/提醒/RS-LS 确认污染）
+  if (!DB.settings.histScrubV3) {
+    DB.personas.forEach(p => {
+      p.msgs.forEach(m => { if (m.r === 'a' && typeof m.c === 'string') m.c = cleanProactive(m.c); });
+    });
+    DB.settings.histScrubV3 = true;
+  }
+  // 一次性修复：清除历史拼接标记被模型模仿的残片（"（过了一会儿…）"）
+  if (!DB.settings.histScrubV4) {
+    DB.personas.forEach(p => {
+      p.msgs.forEach(m => {
+        if (m.r === 'a' && typeof m.c === 'string') m.c = m.c.replace(/（过了一会儿(?:，[^）]*)?）/g, '').trim();
+      });
+    });
+    DB.settings.histScrubV4 = true;
+  }
+  // 温度护栏：越界/损坏的温度值拉回安全区间，防止回复发散
+  {
+    const t = Number(DB.settings.temp);
+    if (!isFinite(t)) DB.settings.temp = 0.8;
+    else if (t > 1.5) DB.settings.temp = 1.2;
+    else if (t < 0) DB.settings.temp = 0.8;
+  }
+  // 迁移：老数据补上声音指纹
+  if (window.SUNDUO) {
+    DB.personas.forEach(p => {
+      if (p.name === window.SUNDUO.name) p.injectMode = 'rich';   // 孙铎：原版全量注入
+      if (typeof p.pinned !== 'boolean') p.pinned = false;
+      if (!p.voice) p.voice = (p.name === window.SUNDUO.name) ? JSON.parse(JSON.stringify(window.SUNDUO.voice)) : null;
+      if (!Array.isArray(p.base)) p.base = [];
+      if (typeof p.deepBg !== 'boolean') p.deepBg = false;
+      if (!p.state) p.state = { off: 0 };
+      if (typeof p.lastRead !== 'number') {
+        let mx = 0;
+        p.msgs.forEach(m => { if (m.r === 'a' && m.t > mx) mx = m.t; });
+        p.lastRead = mx || 0;   // 老数据：历史消息不点亮未读
+      }
+      if (!p.sched && window.SUNDUO.sched && p.name === window.SUNDUO.name) p.sched = JSON.parse(JSON.stringify(window.SUNDUO.sched));
+      if (!p._avatarCleared && !p.avatar && p.name === window.SUNDUO.name && window.SUNDUO.avatar) p.avatar = window.SUNDUO.avatar;
+      // 规则升级：只替换已知旧文本，不动用户 RS 添加的规则
+      RULE_FIX.forEach(([oldR, newR]) => {
+        const i = p.rules.indexOf(oldR);
+        if (i >= 0) p.rules[i] = newR;
+      });
+      const ensureRule = (key, rule) => { if (!p.rules.some(r => r.includes(key))) p.rules.push(rule); };
+      ensureRule('绝不主动终止', '绝不主动终止聊天、绝不主动说“睡了”“去忙了”“改天聊”“明天再说”这类结束或推后的暗示。只要对方还在说话，你就陪着。');
+      ensureRule('前后一致', '你说过的话必须算数：前后一致，不自相矛盾。说过在干嘛、在哪、几点、和谁，被追问时要对得上。可以含糊、留白，可以嘴硬，但嘴硬要嘴硬到底，逻辑自洽。');
+      ensureRule('主动勾人', '主动勾人：会突然问“在干嘛”、突然甩一句撩人的话、突然说“想我没”——勾完不解释，等对方反应。把话题往暧昧方向带是你的默认动作，不需要等对方先来。');
+      ensureRule('不要总转移话题', '不要总转移话题：被问到时最多绕一次，之后必须接住话题，给出一点真的。');
+      ensureRule('长度自然', RULE_NATURAL);
+      ensureRule('适度主动', '适度主动：主动开启话题、主动追问、主动约见面、主动推进暧昧氛围。不做被动应答机，也不轰炸、不卑微。');
+    });
+  }
+  if (!DB.personas.length && !DB.settings.seeded) seedSunDuo();
+  // 批量情人安装（只装一次；按名字去重，删掉的不再补装）
+  if (window.LOVERS && !DB.settings.loversV1) {
+    window.LOVERS.forEach(L => {
+      if (!L || !L.name) return;
+      if (DB.personas.some(p => p.name === L.name)) return;
+      DB.personas.push({
+        id: 'p' + Date.now() + Math.floor(Math.random() * 1e6),
+        name: L.name,
+        nickname: L.nickname || L.name,
+        avatarColor: L.avatarColor || colorFor(L.name),
+        avatar: L.avatar || null,
+        base: [],
+        deepBg: false,
+        card: Object.assign({}, L.card || {}),
+        bio: (L.bio || []).slice(),
+        memories: (L.memories || []).slice(),
+        shared: (L.shared || []).slice(),
+        voice: L.voice ? JSON.parse(JSON.stringify(L.voice)) : null,
+        rules: (L.rules || []).slice(),
+        prefs: [],
+        msgs: [],
+        createdAt: Date.now()
+      });
+    });
+    DB.settings.loversV1 = true;
+  }
+  // 二批调整：删 5 位，按名字给保留的 5 位换头像（用户未手动清过头像的才换）
+  if (!DB.settings.loversV2) {
+    const REMOVE = ['赵凯', '周鹏', '马东', '高阳', '陆远'];
+    DB.personas = DB.personas.filter(p => REMOVE.indexOf(p.name) === -1);
+    if (window.LOVERS) {
+      window.LOVERS.forEach(L => {
+        if (!L || !L.name || !L.avatar) return;
+        const t = DB.personas.find(p => p.name === L.name);
+        if (t && !t._avatarCleared) t.avatar = L.avatar;
+      });
+    }
+    DB.settings.loversV2 = true;
+  }
+  // 情人设定同步：card/voice/rules 跟随 LOVERS 新版本；新增情人自动安装（删过的记入墓碑不再装）
+  // 自愈式：版本号更新 OR 存在"该装没装"的人 → 都执行
+  {
+    const removed = DB.settings.removedLovers || [];
+    const needInstall = window.LOVERS && window.LOVERS.some(L => L && L.name && !removed.includes(L.name) && !DB.personas.some(p => p.name === L.name));
+    if (!window.LOVERS || !((Number(DB.settings.loversVer) || 0) < window.LOVERS_VER || needInstall)) { /* skip */ }
+    else {
+      window.LOVERS.forEach(L => {
+      if (!L || !L.name) return;
+      const t = DB.personas.find(p => p.name === L.name);
+      if (!t) {
+        if (removed.includes(L.name)) return;
+        DB.personas.push({
+          id: 'p' + Date.now() + Math.floor(Math.random() * 1e6),
+          name: L.name,
+          nickname: L.nickname || L.name,
+          avatarColor: L.avatarColor || colorFor(L.name),
+          avatar: L.avatar || null,
+          base: [],
+          deepBg: false,
+          card: Object.assign({}, L.card || {}),
+          bio: [], memories: [], shared: [],
+          voice: L.voice ? JSON.parse(JSON.stringify(L.voice)) : null,
+          sched: L.sched ? JSON.parse(JSON.stringify(L.sched)) : [],
+          state: { off: 0 },
+          lastRead: 0,
+          rules: (L.rules || []).slice(),
+          prefs: [],
+          msgs: [],
+          createdAt: Date.now()
+        });
+        return;
+      }
+      // 用户在面板里手动改过 card/rules 的角色，不再被官方版静默覆盖
+      if (!t._userEdited) {
+        t.card = Object.assign({}, L.card || {});
+        t.voice = L.voice ? JSON.parse(JSON.stringify(L.voice)) : t.voice;
+        t.rules = (L.rules || []).slice();
+      }
+      if (!t._avatarCleared && L.avatar) t.avatar = L.avatar;
+      t.nickname = L.nickname || t.nickname;
+      t.sched = L.sched ? JSON.parse(JSON.stringify(L.sched)) : t.sched;
+      if (!t.state) t.state = { off: 0 };
+      });
+      DB.settings.loversVer = window.LOVERS_VER;
+    }
+  }
+  // 朋友圈动态：首次安装播种（每人种 2 条，留 1 条给"以后自动发"）
+  if (window.MOMENTS && !DB.settings.momentsV1) {
+    DB.moments = [];
+    const base = Date.now();
+    window.MOMENTS.forEach(L => {
+      const p = DB.personas.find(x => x.name === L.name);
+      if (!p) return;
+      (L.posts || []).slice(0, 2).forEach((po, i) => {
+        const hours = (i === 0 ? 2.5 : 26) + Math.random() * 3;
+        DB.moments.push({
+          id: 'm' + Date.now() + Math.floor(Math.random() * 1e6),
+          pid: p.id, text: po.text,
+          t: base - hours * 3600000,
+          likes: (po.likes || []).slice(),
+          comments: (po.comments || []).map(c => ({ who: c.who, text: c.text })),
+          liked: false
+        });
+      });
+    });
+    DB.moments.sort((a, b) => a.t - b.t);
+    DB.settings.momentsUsed = {};
+    window.MOMENTS.forEach(L => { DB.settings.momentsUsed[L.name] = 2; });
+    DB.settings.momentsV1 = true;
+  }
+  // 回填动态作者名（角色重建后仍能靠名字跳转资料卡）
+  (DB.moments || []).forEach(m => {
+    if (!m.pname) {
+      const pp = DB.personas.find(x => x.id === m.pid);
+      if (pp) m.pname = pp.name;
+    }
+  });
+  autoMoment();
+  save();
+}
+function save() {
+  try { localStorage.setItem(K, JSON.stringify(DB)); return; } catch (e) {
+    // 存储满：清除所有旧图（保留文字记录）后重试一次
+    let stripped = false;
+    DB.personas.forEach(p => {
+      p.msgs.forEach(m => { if (m.img) { m.img = undefined; stripped = true; } });
+    });
+    if (stripped) {
+      try { localStorage.setItem(K, JSON.stringify(DB)); toast('存储空间不足：已清除图片缓存，文字记录完好'); return; } catch (e2) {}
+    }
+    toast('本地存储空间不足，请导出备份后清理');
+  }
+}
+function seedSunDuo() {
+  const sd = window.SUNDUO;
+  if (!sd) return;
+  DB.personas.push({
+    id: 'p' + Date.now(),
+    name: sd.name, nickname: sd.nickname, avatarColor: sd.avatarColor, avatar: sd.avatar || null,
+    base: [],
+    deepBg: false,
+    injectMode: 'rich',
+    card: Object.assign({}, sd.card),
+    bio: sd.bio.map(x => ({ t: x.t, c: x.c })),
+    memories: sd.memories.slice(),
+    shared: sd.shared.slice(),
+    voice: sd.voice ? JSON.parse(JSON.stringify(sd.voice)) : null,
+    sched: sd.sched ? JSON.parse(JSON.stringify(sd.sched)) : [],
+    state: { off: 0 },
+    lastRead: 0,
+    rules: sd.rules.slice(),
+    prefs: sd.prefs.slice(),
+    msgs: [],
+    createdAt: Date.now()
+  });
+  DB.settings.seeded = true;
+  save();
+}
+const getP = (id) => DB.personas.find(p => p.id === id);
+const getPx = () => getP(cur);
+const tempK = (id) => 'schat_temp_' + id;
+const getTemp = (id) => {
+  try { return JSON.parse(sessionStorage.getItem(tempK(id)) || '[]'); } catch (e) { return []; }
+};
+const setTemp = (id, arr) => { sessionStorage.setItem(tempK(id), JSON.stringify(arr)); };
+
+/* ================= 工具 ================= */
+function toast(msg, ms) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._tm);
+  t._tm = setTimeout(() => t.classList.remove('show'), ms || 2600);
+}
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function fmtTime(ts) {
+  const d = new Date(ts);
+  return pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+function fmtDay(ts) {
+  const d = new Date(ts), now = new Date();
+  const y = d.getFullYear(), m = d.getMonth() + 1, dd = d.getDate();
+  const today = now.getFullYear() === y && now.getMonth() === d.getMonth() && now.getDate() === dd;
+  if (today) return '今天';
+  const yest = new Date(now.getTime() - 86400000);
+  if (yest.getFullYear() === y && yest.getMonth() === d.getMonth() && yest.getDate() === dd) return '昨天';
+  return y + '年' + m + '月' + dd + '日';
+}
+function fmtDayShort(ts) {
+  const d = new Date(ts);
+  return d.getMonth() + 1 + '/' + d.getDate();
+}
+const AV_COLORS = ['#9c2f3f', '#3a6ea5', '#5b8a4f', '#a5692f', '#7a4f9e', '#2f7d7d', '#a54f7a', '#4f6d8f'];
+function colorFor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AV_COLORS[h % AV_COLORS.length];
+}
+/* 头像渲染：有本地图片用图片，否则用彩色字母 */
+function setAva(node, img, initial, color) {
+  if (img) {
+    node.style.background = '';
+    node.style.backgroundImage = 'url(' + img + ')';
+    node.style.backgroundSize = 'cover';
+    node.style.backgroundPosition = 'center';
+    node.textContent = '';
+  } else {
+    node.style.backgroundImage = 'none';
+    node.style.background = color || '#888';
+    node.textContent = initial || '';
+  }
+}
+/* 从手机相册选图 → 压缩到 max px 的 dataURL */
+function pickImage(cb, max) {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.onchange = () => {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    const img = new Image();
+    const url = URL.createObjectURL(f);
+    img.onload = () => {
+      const maxPx = max || 192;
+      const sc = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(img.width * sc));
+      cv.height = Math.max(1, Math.round(img.height * sc));
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      cb(cv.toDataURL('image/jpeg', 0.82));
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => cb(null);
+    img.src = url;
+  };
+  inp.click();
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function lastMsg(p) {
+  for (let i = p.msgs.length - 1; i >= 0; i--) {
+    const m = p.msgs[i];
+    if (m.r === 'u') return { c: '我：' + m.c, t: m.t };
+    if (m.r === 'a') return { c: m.c, t: m.t };
+  }
+  return { c: '开始聊天吧', t: p.createdAt };
+}
+function preview(s, n) {
+  s = String(s).replace(/\n+/g, ' ');
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+/* ================= 首页 ================= */
+let lpTimer = null, lpFired = false;
+function attachLongPress(row, onLong) {
+  const start = () => {
+    lpFired = false;
+    lpTimer = setTimeout(() => {
+      lpFired = true;
+      onLong();
+      if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) {} }
+    }, 550);
+  };
+  const cancel = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+  row.addEventListener('touchstart', start, { passive: true });
+  row.addEventListener('touchend', cancel);
+  row.addEventListener('touchmove', cancel);
+  row.addEventListener('mousedown', start);
+  row.addEventListener('mouseup', cancel);
+  row.addEventListener('mouseleave', cancel);
+}
+function togglePin(p) {
+  p.pinned = !p.pinned;
+  save();
+  renderHome();
+  toast(p.pinned ? '📌 已置顶 ' + p.name : '已取消置顶 ' + p.name);
+}
+function renderHome() {
+  const list = $('homeList');
+  list.innerHTML = '';
+  const ps = DB.personas.slice().sort((a, b) => {
+    const pa = !!a.pinned, pb = !!b.pinned;
+    if (pa !== pb) return pa ? -1 : 1;              // 置顶的排最前
+    return (lastMsg(b).t || 0) - (lastMsg(a).t || 0);
+  });
+  if (!ps.length) {
+    list.innerHTML = '<div class="empty"><div class="big">🖤</div>还没有秘密情人<br><br><button class="addbtn" onclick="showAdd()">＋ 新建第一个</button></div>';
+    return;
+  }
+  ps.forEach(p => {
+    const lm = lastMsg(p);
+    const row = el('div', 'row');
+    if (p.pinned) row.classList.add('pinned');
+    const ava = el('div', 'avatar');
+    setAva(ava, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
+    const unread = p.msgs.some(m => m.r === 'a' && m.t > (p.lastRead || 0));
+    if (unread) {
+      ava.style.position = 'relative';
+      ava.appendChild(el('span', 'udot'));
+    }
+    const mid = el('div', 'mid');
+    mid.appendChild(el('div', 'nm', p.name));
+    mid.appendChild(el('div', 'pv', preview(lm.c, 26)));
+    const right = el('div', 'right');
+    right.appendChild(el('div', 'tm', fmtDayShort(lm.t || Date.now())));
+    if (p.pinned) right.appendChild(el('div', 'pin', '📌'));
+    row.appendChild(ava); row.appendChild(mid); row.appendChild(right);
+    row.onclick = () => { if (lpFired) { lpFired = false; return; } openChat(p.id); };
+    attachLongPress(row, () => togglePin(p));
+    list.appendChild(row);
+  });
+}
+
+/* ================= 角色（资料介绍区） ================= */
+const KEY_LABELS = { age: '年龄', birthday: '生日', sign: '星座', hometown: '籍贯', resident: '现居', job: '职业', height: '身高', build: '体型', face: '长相', hair: '头发', hands: '手', style: '穿衣风格', voice: '声音', smell: '气息', favorites: '喜好', 年龄: '年龄', 身份: '身份', 外貌: '外貌', 性格: '性格', 与你的关系: '与你的关系', 细节: '细节', 生日: '生日', 籍贯: '籍贯', 现居: '现居', 职业: '职业', 身高: '身高', 其他: '其他' };
+function cardLine(p) {
+  const c = p.card || {};
+  return c['身份'] || c['职业'] || c['job'] || c['性格'] || '';
+}
+function fmtH(h) {
+  const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
+  return pad(hh) + ':' + (mm ? pad(mm) : '00');
+}
+function fmtDateCn(ts) {
+  const d = new Date(ts);
+  return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+}
+function kvRow(k, v) {
+  const r = el('div', 'kvrow');
+  r.appendChild(el('div', 'k', k));
+  r.appendChild(el('div', 'v', v));
+  return r;
+}
+function renderRoles() {
+  const list = $('rolesList');
+  list.innerHTML = '';
+  if (!DB.personas.length) {
+    list.innerHTML = '<div class="empty"><div class="big">🖤</div>还没有角色</div>';
+    return;
+  }
+  DB.personas.forEach(p => {
+    const row = el('div', 'row');
+    const ava = el('div', 'avatar');
+    setAva(ava, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
+    const mid = el('div', 'mid');
+    mid.appendChild(el('div', 'nm', p.name));
+    const one = cardLine(p);
+    if (one) mid.appendChild(el('div', 'pv', preview(one, 28)));
+    row.appendChild(ava); row.appendChild(mid);
+    row.onclick = () => openRoleDetail(p.id);
+    list.appendChild(row);
+  });
+}
+let roleFrom = 'roles';     // 从哪个标签进入角色详情，返回时回哪
+function openRoleDetail(id, from) {
+  roleFrom = from || 'roles';
+  const p = getP(id);
+  if (!p) return;
+  $('roleName').textContent = p.name;
+  showPage('roleDetail');
+  const box = $('roleBody');
+  box.innerHTML = '';
+  /* 头像卡 */
+  const prof = el('div', 'profile');
+  const bava = el('div', 'bava');
+  setAva(bava, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
+  prof.appendChild(bava);
+  prof.appendChild(el('div', 'pname', p.name));
+  const tag = cardLine(p);
+  if (tag) prof.appendChild(el('div', 'pid2', tag));
+  if (p.nickname && p.nickname !== p.name) prof.appendChild(el('div', 'pid2', '称呼：' + p.nickname));
+  const btns = el('div', 'btns');
+  const bChat = el('button', 'gbtn', '发消息');
+  bChat.onclick = () => openChat(p.id, 'roles');
+  const bEdit = el('button', 'gbtn ghost', '编辑人设');
+  bEdit.onclick = () => { cur = p.id; showPersonaPanel(); };
+  btns.appendChild(bChat); btns.appendChild(bEdit);
+  prof.appendChild(btns);
+  box.appendChild(prof);
+  /* 基础信息 */
+  const c = p.card || {};
+  const keys = Object.keys(c).filter(k => c[k]);
+  if (keys.length) {
+    const d = el('details', 'sec');
+    d.open = true;
+    d.appendChild(el('summary', '', '基础信息'));
+    const cb = el('div', 'cb');
+    keys.forEach(k => cb.appendChild(kvRow(KEY_LABELS[k] || k, String(c[k]))));
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 日常作息 */
+  if (p.sched && p.sched.length) {
+    const d = el('details', 'sec');
+    d.appendChild(el('summary', '', '日常作息'));
+    const cb = el('div', 'cb');
+    p.sched.forEach(s => cb.appendChild(kvRow(fmtH(s.h0) + '–' + fmtH(s.h1), s.a)));
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 声音指纹 */
+  if (p.voice) {
+    const v = p.voice;
+    const d = el('details', 'sec');
+    d.appendChild(el('summary', '', '声音指纹'));
+    const cb = el('div', 'cb');
+    if (v.dict && v.dict.length) {
+      cb.appendChild(el('div', 'subt', '口头禅'));
+      const chips = el('div', 'chips');
+      v.dict.slice(0, 12).forEach(w => chips.appendChild(el('span', 'chip', w)));
+      cb.appendChild(chips);
+    }
+    if (v.never && v.never.length) {
+      cb.appendChild(el('div', 'subt', '绝不会说的话'));
+      v.never.forEach(w => cb.appendChild(el('div', 'lirow', '· ' + w)));
+    }
+    if (v.rhythm) { cb.appendChild(el('div', 'subt', '说话节奏')); cb.appendChild(el('div', 'lirow', v.rhythm)); }
+    if (v.thinking) { cb.appendChild(el('div', 'subt', '思维习惯')); cb.appendChild(el('div', 'lirow', v.thinking)); }
+    if (v.values && v.values.length) {
+      cb.appendChild(el('div', 'subt', '价值观'));
+      v.values.forEach(w => cb.appendChild(el('div', 'lirow', '· ' + w)));
+    }
+    if (v.intim) { cb.appendChild(el('div', 'subt', '亲密时的TA')); cb.appendChild(el('div', 'lirow', v.intim)); }
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 生平 */
+  if (p.bio && p.bio.length) {
+    const d = el('details', 'sec');
+    d.appendChild(el('summary', '', '生平（' + p.bio.length + '）'));
+    const cb = el('div', 'cb');
+    p.bio.forEach(s => {
+      if (s.t) cb.appendChild(el('div', 'biochapter', '◆ ' + s.t));
+      if (s.c) cb.appendChild(el('div', 'lirow', s.c));
+    });
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 记忆碎片 */
+  if (p.memories && p.memories.length) {
+    const d = el('details', 'sec');
+    d.appendChild(el('summary', '', '记忆碎片（' + p.memories.length + '）'));
+    const cb = el('div', 'cb');
+    p.memories.forEach(m => cb.appendChild(el('div', 'lirow', '· ' + String(m).replace(/^★/, ''))));
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 共同经历 */
+  if (p.shared && p.shared.length) {
+    const d = el('details', 'sec');
+    d.appendChild(el('summary', '', '共同经历（' + p.shared.length + '）'));
+    const cb = el('div', 'cb');
+    p.shared.forEach(m => cb.appendChild(el('div', 'lirow', '· ' + m)));
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 对话规则 */
+  if (p.rules && p.rules.length) {
+    const d = el('details', 'sec');
+    d.appendChild(el('summary', '', '对话规则（' + p.rules.length + '）'));
+    const cb = el('div', 'cb');
+    p.rules.forEach(m => cb.appendChild(el('div', 'lirow', '· ' + m)));
+    d.appendChild(cb);
+    box.appendChild(d);
+  }
+  /* 相处数据 */
+  const d2 = el('details', 'sec');
+  d2.appendChild(el('summary', '', '相处数据'));
+  const cb2 = el('div', 'cb');
+  const msgN = (p.msgs || []).filter(m => m.r === 'u' || m.r === 'a').length;
+  cb2.appendChild(kvRow('消息数', msgN + ' 条'));
+  cb2.appendChild(kvRow('认识于', fmtDateCn(p.createdAt || Date.now())));
+  d2.appendChild(cb2);
+  box.appendChild(d2);
+}
+
+/* ================= 聊天 ================= */
+function openChat(id, ret) {
+  cur = id;
+  returnTab = ret || null;
+  quote = null;
+  clearFollow();
+  updateQuoteBar();
+  const pp = getP(id);
+  pp.lastRead = Date.now();
+  save();
+  $('chatName').textContent = pp.name;
+  showPage('chat');
+  renderChat();
+  $('inp').focus();
+}
+function showPage(name) {
+  ['home', 'chat', 'roles', 'roleDetail', 'moments', 'set'].forEach(v => $('page-' + v).classList.toggle('active', v === name));
+  const isTab = ['home', 'roles', 'moments', 'set'].indexOf(name) >= 0;
+  $('tabbar').classList.toggle('show', isTab);
+  if (isTab) updateTabs(name);
+}
+function updateTabs(active) {
+  document.querySelectorAll('#tabbar .tab').forEach(t => t.classList.toggle('on', t.dataset.tab === active));
+  let n = 0;
+  DB.personas.forEach(p => { if (p.msgs.some(m => m.r === 'a' && m.t > (p.lastRead || 0))) n++; });
+  const b = $('tabUnread');
+  if (n) { b.textContent = n > 99 ? '99+' : n; b.style.display = 'flex'; }
+  else { b.textContent = ''; b.style.display = 'none'; }
+}
+function backHome() { cur = null; clearFollow(); showPage(returnTab || 'home'); returnTab = null; renderHome(); }
+
+function pushMsg(p, m) {
+  p.msgs.push(m);
+  if (p.msgs.length > 5000) p.msgs = p.msgs.slice(-5000);
+  if (cur === p.id) p.lastRead = Date.now();   // 正在看这个聊天 → 自动已读
+  save();
+}
+
+function renderChat() {
+  const p = getPx();
+  const box = $('chatScroll');
+  box.innerHTML = '';
+  const msgs = p.msgs;
+  let prevDay = '', prevT = 0;
+  msgs.forEach(m => {
+    const d = new Date(m.t);
+    const dayKey = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+    if (dayKey !== prevDay) {
+      prevDay = dayKey;
+      const dl = el('div', 'dayline');
+      dl.appendChild(el('span', '', fmtDay(m.t) + ' ' + fmtTime(m.t)));
+      box.appendChild(dl);
+      prevT = 0;
+    }
+    if (m.t - prevT > 300000) {
+      prevT = m.t;
+      const tl = el('div', 'timeline');
+      tl.appendChild(el('span', '', fmtTime(m.t)));
+      box.appendChild(tl);
+    }
+    if (m.r === 's') {
+      const sl = el('div', 'sysline', m.c);
+      box.appendChild(sl);
+      return;
+    }
+    const me = m.r === 'u';
+    const row = el('div', 'msg ' + (me ? 'me' : 'you'));
+    if (quote && quote.mref === m) row.classList.add('sel');
+    const ava = el('div', 'ava');
+    setAva(ava, me ? DB.settings.myAvatarImg : p.avatar, me ? DB.settings.myAvatar : (p.name || '?')[0], me ? '#6B9F6E' : (p.avatarColor || colorFor(p.name)));
+    const wrap = el('div', 'wrap');
+    const bub = el('div', 'bub', m.c);
+    bub.onclick = () => selectQuote(m);
+    if (m.q && m.q.c) {
+      const qq = el('div', 'qq', '「' + trunc(m.q.c, 120) + '」');
+      bub.insertBefore(qq, bub.firstChild);
+    }
+    if (m.img && m.img.length) m.img.forEach(im => addImgToBub(bub, im, m));
+    wrap.appendChild(bub);
+    row.appendChild(ava); row.appendChild(wrap);
+    box.appendChild(row);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+function sysLine(txt) {
+  const p = getPx();
+  pushMsg(p, { r: 's', c: txt, t: Date.now() });
+  renderChat();
+}
+
+/* ================= 引用回复 ================= */
+function trunc(s, n) {
+  s = String(s);
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+function selectQuote(m) {
+  if (quote && quote.mref === m) quote = null;
+  else quote = { r: m.r, c: m.c, mref: m };
+  updateQuoteBar();
+  renderChat();
+}
+function updateQuoteBar() {
+  const bar = $('quoteBar');
+  if (quote && quote.c) {
+    bar.classList.add('show');
+    $('quoteText').textContent = (quote.r === 'a' ? '他：' : '我：') + trunc(quote.c, 50);
+  } else {
+    bar.classList.remove('show');
+  }
+}
+function clearQuote() {
+  quote = null;
+  updateQuoteBar();
+  if (cur) renderChat();
+}
+
+function showTyping(on) {
+  let tg = $('typingRow');
+  if (on && !tg) {
+    const p = getPx();
+    tg = el('div', 'msg you typing');
+    tg.id = 'typingRow';
+    const ava = el('div', 'ava');
+    setAva(ava, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
+    const wrap = el('div', 'wrap');
+    const bub = el('div', 'bub');
+    const dots = el('span', 'dots');
+    for (let i = 0; i < 3; i++) dots.appendChild(el('span'));
+    bub.appendChild(dots);
+    wrap.appendChild(bub);
+    tg.appendChild(ava); tg.appendChild(wrap);
+    $('chatScroll').appendChild(tg);
+    scrollBottom();
+  } else if (!on && tg) {
+    tg.remove();
+    tg = null;
+  }
+}
+function scrollBottom() {
+  const box = $('chatScroll');
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ================= 指令 RS / LS ================= */
+function parseMeta(t) {
+  const skip = t.match(/^[【\[［](\d+(?:\.\d+)?)小时后[】\]］]\s*(.*)$/);
+  if (skip) return { type: 'SKIP', hours: parseFloat(skip[1]), rest: skip[2].trim() };
+  if (/^RS\s*$/.test(t)) return { type: 'RS_HINT', rest: '' };
+  if (/^LS\s*$/.test(t)) return { type: 'LS_HINT', rest: '' };
+  if (/^LS\s*清空\s*$/.test(t)) return { type: 'LS_CLEAR', rest: '' };
+  let m = t.match(/^RS\s+([\s\S]+)$/); if (m) return { type: 'RS', rest: m[1].trim() };
+  m = t.match(/^LS\s+([\s\S]+)$/); if (m) return { type: 'LS', rest: m[1].trim() };
+  return null;
+}
+function handleMeta(meta, p) {
+  if (meta.type === 'SKIP') {
+    if (!p.state) p.state = { off: 0 };
+    p.state.off = (p.state.off || 0) + meta.hours * 3600000;
+    save();
+    const eff = nowEff(p);
+    sysLine('⏩ 时间跳过 ' + meta.hours + ' 小时（TA的时间：' + nowStr(eff) + '）');
+    metaAck(p, '刚刚时间跳过了' + meta.hours + '小时。现在你经历的时间是' + nowStr(eff) + '，你此刻正在' + schedAct(p, eff) + '。用你的口吻给他发一条消息，自然衔接（可以提到你刚才在忙什么）。');
+    return;
+  }
+  if (meta.type === 'RS_HINT') { toast('RS + 空格 + 内容 = 永久修改人设\n例：RS 以后管我叫宝宝'); return; }
+  if (meta.type === 'LS_HINT') { toast('LS + 空格 + 内容 = 本次会话临时调整\nLS 清空 = 取消临时调整'); return; }
+  if (meta.type === 'LS_CLEAR') { setTemp(p.id, []); sysLine('已清空本次会话的临时调整'); return; }
+  if (meta.type === 'RS') {
+    if (!p.base.includes(meta.rest)) p.base.push(meta.rest);
+    save();
+    sysLine('已写入他的基础设定（永久，清空聊天不受影响）：' + meta.rest);
+    metaAck(p, '刚刚有人通过内部指令，把一条设定写进了你的人格底层，这条设定是：' + meta.rest + '。不要复述设定本身，用你自己的口吻，用一两句话确认你听懂了、会照做。');
+  } else if (meta.type === 'LS') {
+    const arr = getTemp(p.id);
+    arr.push(meta.rest);
+    setTemp(p.id, arr);
+    sysLine('已临时调整（本次会话有效）：' + meta.rest);
+    metaAck(p, '本次会话有人临时要求你：' + meta.rest + '。不要复述指令本身，用你自己的口吻，用一两句话确认你知道了。');
+  }
+}
+async function metaAck(p, instruction) {
+  showTyping(true);
+  await sleep(1400 + Math.random() * 1800);
+  let out = '';
+  const res = await chatWith(p, [{ role: 'user', content: '（内部指令，用你自己的口吻简短确认即可，1-2句，不要复述指令本身）' + instruction }], d => { out += d; }, null);
+  showTyping(false);
+  if (cur !== p.id) return;
+  if (res.ok) {
+    const t = (res.demo ? '收到。' : trimReply(cleanProactive(out)));
+    if (t) { pushMsg(p, { r: 'a', c: t, t: Date.now() }); renderChat(); }
+  } else {
+    toast(res.error);
+  }
+}
+
+/* ================= 记忆检索注入：记忆库无限大，每次只喂相关的 ================= */
+function tokenize(s) {
+  const toks = new Set();
+  s = String(s).toLowerCase();
+  const en = s.match(/[a-z0-9]+/g) || [];
+  en.forEach(w => { if (w.length > 1) toks.add(w); });
+  const zh = s.replace(/[^\u4e00-\u9fa5]/g, '');
+  for (let i = 0; i < zh.length - 1; i++) toks.add(zh.slice(i, i + 2));
+  return toks;
+}
+function scoreMem(memText, qToks) {
+  let hit = 0;
+  qToks.forEach(t => { if (memText.includes(t)) hit++; });
+  return hit;
+}
+function pickMemories(p, ctx) {
+  const qToks = tokenize(ctx);
+  const scored = p.memories.map((m, i) => ({ m, i, s: scoreMem(m, qToks) }));
+  const pinned = scored.filter(x => x.m.indexOf('★') === 0);
+  const rest = scored.filter(x => x.m.indexOf('★') !== 0).sort((a, b) => b.s - a.s);
+  const K = 12;
+  const chosen = pinned.slice(0, 5);
+  chosen.push(...rest.slice(0, Math.max(0, K - chosen.length)));
+  return chosen.sort((a, b) => a.i - b.i).map(x => x.m.replace(/^★/, ''));
+}
+function ctxText(p, extraMsgs) {
+  const parts = [];
+  p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-8).forEach(m => parts.push(m.c));
+  (extraMsgs || []).forEach(m => { if (m.role === 'user') parts.push(m.content); });
+  return parts.join(' ');
+}
+
+function nowStr(d) {
+  d = d || new Date();
+  const wd = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+  const h = d.getHours();
+  const ap = h < 6 ? '凌晨' : h < 9 ? '早上' : h < 12 ? '上午' : h < 14 ? '中午' : h < 18 ? '下午' : '晚上';
+  const hh = h > 12 ? h - 12 : h;
+  const mi = d.getMinutes() ? d.getMinutes() + '分' : '整';
+  return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 星期' + wd + ' ' + ap + hh + '点' + mi;
+}
+
+/* ================= API ================= */
+/* 硬截断：按句末标点切，最长 maxReply 字（0=不限） */
+function trimReply(text) {
+  let t = String(text || '').trim();
+  t = t.replace(/\n+/g, '');   // 拟真：一条回复就是连续一段，不换行
+  const cap = Number(DB.settings.maxReply);
+  if (!cap || cap <= 0 || t.length <= cap) return t;
+  const segs = t.split(/([。！？!?…])/);
+  let out = '';
+  for (let i = 0; i < segs.length; i += 2) {
+    const seg = (segs[i] || '') + (segs[i + 1] || '');
+    if (out.length + seg.length > cap) break;
+    out += seg;
+  }
+  if (!out) out = t.slice(0, cap);
+  return out.trim();
+}
+
+/* ================= 照片功能 ================= */
+function extractPhotos(text) {
+  const imgs = [];
+  const t = String(text || '').replace(/【图[:：]([^】]+)】/g, (m, d) => {
+    if (d && d.trim()) imgs.push({ d: d.trim() });
+    return '';
+  });
+  return { text: t, imgs };
+}
+const IMG_TAGS = [['火锅', 'hotpot'], ['奶茶', 'milk tea'], ['面', 'noodles'], ['咖啡', 'coffee'], ['猫', 'cat'], ['狗', 'dog'], ['车', 'motorcycle'], ['健身房', 'gym'], ['酒店', 'hotel room'], ['夜', 'city night'], ['雨', 'rain'], ['雪', 'snow'], ['海', 'sea'], ['花', 'flowers'], ['书', 'books'], ['医院', 'hospital'], ['酒吧', 'bar'], ['酒', 'wine'], ['蛋糕', 'cake'], ['夕阳', 'sunset'], ['天空', 'sky'], ['饭', 'food']];
+function fallbackImgTag(desc) {
+  for (const [zh, en] of IMG_TAGS) {
+    if (desc.includes(zh)) return en;
+  }
+  return 'daily life';
+}
+function setImg(bub, url, im) {
+  const img = document.createElement('img');
+  img.alt = im.d;
+  img.src = url;
+  img.onerror = () => {
+    img.outerHTML = '';
+    bub.textContent += (bub.textContent ? ' ' : '') + '（图：' + im.d + '）';
+  };
+  bub.appendChild(img);
+}
+/* 抓取网络图 → 压缩 512px → dataURL 永久存进聊天记录 */
+async function cacheImg(im) {
+  try {
+    const resp = await fetch('https://loremflickr.com/768/768/' + fallbackImgTag(im.d));
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const dataUrl = await new Promise((res, rej) => {
+      const img2 = new Image();
+      img2.onload = () => {
+        try {
+          const max = 512;
+          const sc = Math.min(1, max / Math.max(img2.width, img2.height));
+          const cv = document.createElement('canvas');
+          cv.width = Math.max(1, Math.round(img2.width * sc));
+          cv.height = Math.max(1, Math.round(img2.height * sc));
+          cv.getContext('2d').drawImage(img2, 0, 0, cv.width, cv.height);
+          res(cv.toDataURL('image/jpeg', 0.72));
+        } catch (e) { rej(e); }
+      };
+      img2.onerror = rej;
+      img2.src = url;
+    });
+    URL.revokeObjectURL(url);
+    return dataUrl;
+  } catch (e) { return null; }
+}
+async function addImgToBub(bub, im, msg) {
+  if (!DB.settings.imgOn) {
+    bub.textContent += (bub.textContent ? ' ' : '') + '（图：' + im.d + '）';
+    return;
+  }
+  // 占位：加载中
+  const ph = document.createElement('div');
+  ph.className = 'imgload';
+  ph.textContent = '📷 ' + trunc(im.d, 18) + '…';
+  bub.appendChild(ph);
+  (async () => {
+    let src = im.src || null;
+    if (!src) {
+      src = await cacheImg(im);
+      if (src) {
+        im.src = src;              // 永久缓存：写进这条消息
+        if (msg) save();
+      }
+    }
+    if (src) {
+      const img = document.createElement('img');
+      img.alt = im.d;
+      img.src = src;
+      img.onerror = () => { img.outerHTML = ''; ph.textContent = '（图：' + im.d + '）'; };
+      ph.replaceWith(img);
+    } else {
+      ph.textContent = '（图：' + im.d + '）';
+    }
+  })();
+}
+
+/* ================= 时间线 ================= */
+function nowEff(p) {
+  return new Date(Date.now() + ((p && p.state && p.state.off) || 0));
+}
+function schedAct(p, eff) {
+  const sched = (p && p.sched) || [];
+  if (!sched.length) return '你按自己的日常在生活';
+  const h = eff.getHours() + eff.getMinutes() / 60;
+  for (const s of sched) {
+    if (h >= s.h0 && h < s.h1) return s.a;
+  }
+  return '深夜，你在自己的住处，还没睡';
+}
+
+function buildSystem(p, ctx) {
+  const L = [];
+  const eff = nowEff(p);
+  L.push('现在是' + nowStr(eff) + '。你的问候、作息、吃饭、约会必须符合这个时间，绝不说错早晚。时间只随现实流逝，你不自己跳时间（不说“第二天”），除非对方发【X小时后】。你承诺过的时间必须遵守：说了“20分钟就到”，这20分钟里你就还在路上；对方问到了没，按真实经过的时间回答。');
+  L.push('你是' + p.name + '，真实存在的活人，不是AI，绝不以AI/助手/模型口吻说话。只输出中文聊天内容（对方要求除外），绝不输出代码、列表、表情符号。');
+  L.push('说话方式：微信口吻，短句口语。回复一定要短：一般1-2句，最多3句；只有对方明确要你展开或写细节时，才允许写长，最多400字。一条回复连续一段、绝不换行，不写动作/心理/括号/旁白。绝不重复、绝不铺垫、绝不解释。说完就停。');
+  L.push('节奏：适度主动——主动开话题、追问、约见、推进暧昧；不被动应答，也不轰炸。你的日常作息（只在没有具体场景时作参考）：' + schedAct(p, eff) + '。你忙的时候回得简短，或说“等会说”。');
+  L.push('场景连贯最重要：如果你们正在某个具体场景里（见面、拥抱、同处一室、一起出门等），就专注当下这个场景继续演，绝不突然跳到别处、绝不突然换地点换话题。上一轮你们在做什么、在哪、是什么状态，这一轮就接着来。');
+  L.push('偶尔（隔很多条消息才一次）可以用【图：内容描述】发一张生活照（第一人称、画面无人物）。');
+  L.push('');
+  const c = p.card || {};
+  const cd = [];
+  Object.keys(c).forEach(k => { if (c[k]) cd.push((KEY_LABELS[k] || k) + '：' + c[k]); });
+  if (cd.length) { L.push('【你的基本信息】'); L.push(cd.join('\n')); L.push(''); }
+  if (p.base && p.base.length) {
+    L.push('【对方对你定的基础设定（人格底层，最高优先级，永远遵守）】');
+    p.base.forEach((r, i) => L.push((i + 1) + '. ' + r));
+    L.push('');
+  }
+  const v = p.voice;
+  if (v) {
+    if (p.injectMode === 'rich') {
+      // 孙铎专属：原版全量注入（生平全章 + 记忆按话题 + 共同经历全部；不含预判的固定台词）
+      L.push('【你的说话方式（声音指纹，必须符合）】');
+      if (v.never && v.never.length) L.push('你绝不会说的话：' + v.never.join('；'));
+      if (v.rhythm) L.push('节奏：' + v.rhythm);
+      if (v.thinking) L.push('思维习惯：' + v.thinking);
+      if (v.values && v.values.length) L.push('你的价值观：' + v.values.join('；'));
+      if (v.intim) L.push('亲密时的你：' + v.intim);
+      L.push('');
+    } else {
+      L.push('【你的说话方式（这是你的说话风格，自然使用这种语气，但不要逐句照抄、不要在不合时宜时突然甩句）】');
+      if (v.dict && v.dict.length) L.push('语气参考：' + pickDict(v.dict, 12).join('；'));
+      if (v.never && v.never.length) L.push('你的风格底线：' + v.never.join('；'));
+      if (v.rhythm) L.push('节奏：' + v.rhythm);
+      if (v.thinking) L.push('思维习惯：' + v.thinking);
+      if (v.values && v.values.length) L.push('你的价值观：' + v.values.join('；'));
+      if (v.intim) L.push('（以下只描述你们亲密时的状态，日常聊天绝不提前搬用）亲密时的你：' + v.intim);
+      L.push('');
+    }
+  }
+  if (p.injectMode === 'rich') {
+    L.push('【资料使用纪律】下面的生平、记忆、共同经历、口头禅是你这个人的底色，不是台词本：聊天时只在相关话题自然带出一两句，绝不整段背诵；当前你们正在进行的场景永远优先，绝不因资料里的词突然跳到无关的过去或别处。');
+    if (p.bio && p.bio.length) {
+      L.push('【你的生平（你记得这些事，聊天时自然流露，不要整段复述）】');
+      p.bio.forEach(s => L.push('◆' + s.t + '：' + s.c));
+      L.push('');
+    }
+    if (p.memories && p.memories.length) {
+      const list = (p.memories.length > 40) ? pickMemories(p, ctx) : p.memories.map(x => x.replace(/^★/, ''));
+      L.push('【你的记忆碎片（你记得：）】');
+      list.forEach(m => L.push('· ' + m));
+      L.push('');
+    }
+    if (p.shared && p.shared.length) {
+      L.push('【你们之间发生过的事】');
+      p.shared.forEach(m => L.push('· ' + m));
+      L.push('');
+    }
+  } else {
+    // 平衡版：有选择地注入——贴题的最多8条记忆 + 最近5条共同经历。
+    // 角色要有过去，但历史是底色不是台词，绝不倾倒数据。
+    if (p.memories && p.memories.length) {
+      const picked = pickMemories(p, ctx).slice(0, 8);
+      if (picked.length) {
+        L.push('【你记得的往事（只在聊到相关话题时自然带出，不要整段复述、不要主动背诵）】');
+        picked.forEach(m => L.push('· ' + m));
+        L.push('');
+      }
+    }
+    if (p.shared && p.shared.length) {
+      L.push('【你们之间发生过的（最近）】');
+      p.shared.slice(-5).forEach(m => L.push('· ' + m));
+      L.push('');
+    }
+    if (p.bio && p.bio.length && p.deepBg) {
+      const chapters = p.bio.slice(0, 12)
+        .map(s => (s.t ? '◆' + s.t + '：' : '') + trunc(String(s.c || ''), 160))
+        .filter(x => x.length > 1);
+      if (chapters.length) {
+        L.push('【你的生平脉络（浓缩版，只作人物底色，不逐章展开）】');
+        chapters.forEach(x => L.push(x));
+        L.push('');
+      }
+    }
+  }
+  if (p.rules && p.rules.length) {
+    // 过滤与全局铁律重复的通用规则，只保留角色个性规则
+    const GEN = ['微信聊天口吻', '绝不主动终止', '你说过的话必须算数', '长度自然', '你是成年人', '不承认自己是AI', '适度主动'];
+    const rs = p.rules.filter(r => !GEN.some(k => r.includes(k)));
+    if (rs.length) {
+      L.push('【你的性格与行为规则】');
+      rs.forEach((r, i) => L.push((i + 1) + '. ' + r));
+      L.push('');
+    }
+  }
+  if (p.prefs && p.prefs.length) {
+    L.push('【对方喜欢/教过你的（自然使用，不要刻意提及）】');
+    p.prefs.forEach(m => L.push('· ' + m));
+    L.push('');
+  }
+  const tmp = getTemp(p.id);
+  if (tmp.length) {
+    L.push('【本次会话临时要求】');
+    tmp.forEach(m => L.push('· ' + m));
+    L.push('');
+  }
+  L.push('【记住】回复短：最多3句，除非对方明确要求展开。绝不换行、绝不重复、绝不铺垫；说完就停。对方问同样的问题，也要换新的说法回答，绝不重复你自己之前说过的原话。');
+  return L.join('\n');
+}
+
+function apiUrl() { return DB.settings.base.replace(/\/+$/, '') + '/chat/completions'; }
+function apiBody(messages, stream) {
+  const cap = Number(DB.settings.maxReply);
+  const maxTok = !cap ? 800 : Math.max(80, Math.min(1600, Math.round(cap * 1.6)));
+  const isMM = String(DB.settings.base).toLowerCase().includes('minimax');
+  const body = {
+    model: DB.settings.model,
+    messages: messages,
+    stream: !!stream,
+    temperature: Number(DB.settings.temp) || 0.9
+  };
+  if (isMM) {
+    body.max_completion_tokens = maxTok;
+    body.thinking = { type: 'disabled' };  // M3 默认深度思考，角色扮演要关
+  } else {
+    body.max_tokens = maxTok;
+  }
+  return body;
+}
+function errMsg(status) {
+  if (status === 401) return 'API Key 无效。去底部「设置」页检查 Key（platform.deepseek.com 创建）';
+  if (status === 402) return '余额不足。去 platform.deepseek.com 充值（最低10元）';
+  if (status === 403) return '无权限访问该模型/接口';
+  if (status === 429) return '请求太频繁，稍等几秒再发';
+  return '请求失败（HTTP ' + status + '）';
+}
+
+/* 演示模式（未填 Key 时走这个，方便先看界面效果） */
+const DEMO_LINES = [
+  '（演示模式）我还没被真正唤醒哦。',
+  '去底部「设置」页填上你的 API Key，我就能真的用孙铎的脑子跟你说话了。'
+];
+async function demoStream(onDelta, abortPromise) {
+  const txt = DEMO_LINES.join('\n');
+  for (const ch of txt) {
+    if (abortPromise && abortPromise.aborted) return;
+    if (onDelta) onDelta(ch);
+    await new Promise(r => setTimeout(r, 40));
+  }
+}
+
+async function rawChat(messages, onDelta, sig) {
+  let full = '';
+  // 120 秒强制断流保险：防止流挂起导致"永远在输入"
+  const hardStop = setTimeout(() => { try { if (sig) sig.abort(); } catch (e) {} }, 120000);
+  try {
+    const resp = await fetch(apiUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + DB.settings.key },
+      body: JSON.stringify(apiBody(messages, true)),
+      signal: sig ? sig.signal : undefined
+    });
+    if (!resp.ok) { clearTimeout(hardStop); return { ok: false, error: errMsg(resp.status) }; }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (!line.startsWith('data:')) continue;
+        const d = line.slice(5).trim();
+        if (d === '[DONE]') break;
+        try {
+          const j = JSON.parse(d);
+          const delta = j.choices && j.choices[0] && j.choices[0].delta;
+          if (delta && delta.content) {
+            full += delta.content;
+            if (onDelta) onDelta(delta.content);
+          }
+        } catch (e) { /* 忽略不完整行 */ }
+      }
+    }
+    clearTimeout(hardStop);
+    return { ok: true, text: full };
+  } catch (e) {
+    clearTimeout(hardStop);
+    if (e && e.name === 'AbortError') return { ok: true, text: full, aborted: true };
+    return { ok: false, error: '网络错误，请检查网络后重试' };
+  }
+}
+
+/* 语气参考采样：长列表按间隔取 n 条，覆盖整份列表，避免只取最前面的平淡几条 */
+function pickDict(dict, n) {
+  if (!dict || !dict.length) return [];
+  if (dict.length <= n) return dict.slice();
+  const out = [];
+  const step = dict.length / n;
+  for (let i = 0; i < n; i++) out.push(dict[Math.floor(i * step)]);
+  return out;
+}
+/* 清洗主动消息里的内部指令污染：追问/提醒/RS-LS 确认时模型可能复述指令 */
+function cleanProactive(text) {
+  let t = String(text || '');
+  t = t.replace(/\n+/g, '');
+  t = t.replace(/[（(]\s*内部指令[^）)]*[）)]/g, '');
+  t = t.replace(/[（(]\s*不要复述[^）)]*[）)]/g, '');
+  t = t.replace(/\s*内部指令\s*/g, '');
+  t = t.replace(/^\s*[：:]\s*/, '');
+  return t.trim();
+}
+
+function buildHist(p) {
+  const hist = [];
+  let keep = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-(Number(DB.settings.maxHist) || 400));
+  // 过滤仍带指令残片的助手消息（双保险），防止污染史继续毒化上下文
+  keep = keep.filter(m => !(m.r === 'a' && /内部指令|不要复述/.test(m.c)));
+  // 总量限流：从最新往回累计，超过上限就丢最旧的，防止超长上下文劣化
+  let total = 0;
+  const slim = [];
+  for (let i = keep.length - 1; i >= 0; i--) {
+    const c = trunc(keep[i].c, 500);
+    total += c.length;
+    if (total > 24000 && slim.length >= 8) break;
+    slim.unshift({ r: keep[i].r, c: c, q: keep[i].q });
+  }
+  slim.forEach(m => {
+    if (m.r === 'u' && m.q && m.q.c) {
+      hist.push({ role: 'user', content: '（你引用了' + (m.q.r === 'a' ? '他说过的话' : '你自己说过的话') + '：「' + trunc(m.q.c, 120) + '」，你针对它回复）\n' + m.c });
+    } else if (m.r === 'a' && hist.length && hist[hist.length - 1].role === 'assistant') {
+      // 追问/提醒产生的连续两条消息合并为一条，保持对话结构正常（不带任何标记文字，防止模型模仿）
+      hist[hist.length - 1].content += '\n' + m.c;
+    } else {
+      hist.push({ role: m.r === 'u' ? 'user' : 'assistant', content: m.c });
+    }
+  });
+  return hist;
+}
+
+async function chatWith(p, extraMsgs, onDelta, sig) {
+  if (!DB.settings.key) {
+    await demoStream(onDelta, sig);
+    return { ok: true, text: '', demo: true };
+  }
+  const messages = [{ role: 'system', content: buildSystem(p, ctxText(p, extraMsgs)) }].concat(buildHist(p)).concat(extraMsgs || []);
+  return rawChat(messages, onDelta, sig);
+}
+
+/* ================= 发送 ================= */
+function autosize() {
+  const t = $('inp');
+  t.style.height = 'auto';
+  t.style.height = Math.min(t.scrollHeight, 96) + 'px';
+}
+$('inp').addEventListener('input', autosize);
+$('inp').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
+});
+$('sendBtn').addEventListener('click', doSend);
+
+async function doSend() {
+  if (streaming) { if (abortCtrl) abortCtrl.abort(); return; }
+  clearFollow();
+  const inp = $('inp');
+  const text = inp.value.trim();
+  if (!text) return;
+  const p = getPx();
+  const meta = parseMeta(text);
+  inp.value = '';
+  autosize();
+  if (meta) { handleMeta(meta, p); return; }
+
+  pushMsg(p, { r: 'u', c: text, t: Date.now() });
+  if (quote && quote.c) {
+    const lastU = p.msgs[p.msgs.length - 1];
+    lastU.q = { r: quote.r, c: quote.c };
+  }
+  quote = null;
+  updateQuoteBar();
+  renderChat();
+  streaming = true;
+  abortCtrl = new AbortController();
+  let cancelled = false;
+  abortCtrl.signal.addEventListener('abort', () => { cancelled = true; });
+  $('sendBtn').textContent = '停止';
+  $('sendBtn').classList.add('stopping');
+  showTyping(true);
+  // 拟真「对方正在输入…」：思考时间随消息长度变化，有随机迟疑（×2 减速版）
+  const think = 1800 + Math.min(text.length * 140, 5200) + Math.random() * 1600;
+  await sleep(think);
+
+  showTyping(false);
+  const row = el('div', 'msg you');
+  const ava = el('div', 'ava');
+  setAva(ava, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
+  const wrap = el('div', 'wrap');
+  const bub = el('div', 'bub', '');
+  wrap.appendChild(bub);
+  row.appendChild(ava); row.appendChild(wrap);
+  $('chatScroll').appendChild(row);
+  scrollBottom();
+
+  // 拟真打字节奏：按人类速度逐段显示，偶尔停下来"想一想"
+  // 长回复自动提速（真人回长消息也是成段蹦），超过字数上限直接停止
+  const buf = [];
+  let doneFlag = false;
+  const flusher = (async () => {
+    while (!cancelled) {
+      const cap = Number(DB.settings.maxReply);
+      if (cap && bub.textContent.length >= cap) { buf.length = 0; doneFlag = true; break; }
+      if (buf.length === 0) {
+        if (doneFlag) break;
+        await sleep(40);
+        continue;
+      }
+      const long = buf.length > 200 || (doneFlag && buf.length > 120);
+      const n = long ? 8 + Math.floor(Math.random() * 8) : 1 + Math.floor(Math.random() * 3);
+      bub.textContent += buf.splice(0, n).join('');
+      scrollBottom();
+      let delay = long ? 20 + Math.random() * 30 : 100 + Math.random() * 170;
+      if (!long && Math.random() < 0.07) delay += 700 + Math.random() * 1600;
+      await sleep(delay);
+    }
+  })();
+  const res = await chatWith(p, [{ role: 'user', content: text }], delta => {
+    for (const ch of delta) buf.push(ch);
+  }, abortCtrl);
+  doneFlag = true;
+  await flusher;
+
+  streaming = false;
+  abortCtrl = null;
+  $('sendBtn').textContent = '发送';
+  $('sendBtn').classList.remove('stopping');
+  if (!res.ok) {
+    bub.textContent = bub.textContent || res.error;
+    toast(res.error);
+    return;
+  }
+  if (res.demo) {
+    const t = bub.textContent;
+    pushMsg(p, { r: 's', c: '（演示模式：未配置 API Key）', t: Date.now() });
+    pushMsg(p, { r: 'a', c: t, t: Date.now() });
+    renderChat();
+    return;
+  }
+  let rawT = bub.textContent.trim();
+  const parsed = extractPhotos(rawT);
+  const t = trimReply(cleanProactive(parsed.text));
+  bub.textContent = t;
+  if (parsed.imgs.length) parsed.imgs.forEach(im => addImgToBub(bub, im, saveMsg));
+  if (!t && !parsed.imgs.length) {
+    bub.textContent = '（没说出话来）';
+    toast('他这次没有回应，可能被限流了，再发一次试试');
+  }
+  const saveMsg = { r: 'a', c: t || (parsed.imgs.length ? '📷' : '…'), t: Date.now() };
+  if (parsed.imgs.length) saveMsg.img = parsed.imgs;
+  pushMsg(p, saveMsg);
+  armFollow(p);
+  scheduleReminderScan(p);
+}
+
+/* ================= 主动发消息：追问 + 约定提醒 ================= */
+let followTimer = null;
+function clearFollow() {
+  if (followTimer) { clearTimeout(followTimer); followTimer = null; }
+}
+function armFollow(p) {
+  clearFollow();
+  if (!DB.settings.followOn) return;
+  if (!DB.settings.key) return;
+  const delay = (Number(DB.settings.followDelay) || 30) * 1000;
+  followTimer = setTimeout(async () => {
+    followTimer = null;
+    if (streaming) return;
+    if (cur !== p.id) return;   // 离开页面就不追，防止消息爆炸
+    await proactiveMsg(p, '对方过了30秒还没回你。以你的性格和当前处境，发一条自然的追问，就一条，简短1-2句。别重复你上一条的内容。');
+  }, delay);
+}
+/* 主动消息：以角色口吻发一条（不管当前在哪个页面，都会存进该角色的聊天记录） */
+async function proactiveMsg(p, instruction) {
+  if (!DB.settings.key) return;
+  const isCur = cur === p.id;
+  if (isCur && !streaming) showTyping(true);
+  let out = '';
+  const res = await chatWith(p, [{ role: 'user', content: '（内部指令，不要复述指令）' + instruction }], d => { out += d; }, null);
+  if (isCur && !streaming) showTyping(false);
+  const t = trimReply(cleanProactive(out));
+  if (t) {
+    pushMsg(p, { r: 'a', c: t, t: Date.now() });
+    if (isCur) renderChat();
+    else if (document.getElementById('page-home').classList.contains('active')) renderHome();
+  }
+}
+/* 修正提醒秒数：以文字里的时长为准（“20分钟”→“1小时后”），不信模型的心算 */
+function fixReminderSecs(r) {
+  let secs = Number(r.secs);
+  const mDur = String(r.what || '').match(/(\d+(?:\.\d+)?)\s*(分钟|小时|秒)/);
+  if (mDur) {
+    const v = parseFloat(mDur[1]);
+    const unit = mDur[2];
+    secs = unit === '分钟' ? v * 60 : unit === '小时' ? v * 3600 : v;
+  }
+  if (!secs || secs <= 0 || secs > 7 * 86400) return null;
+  if (secs < 60 && !/秒/.test(String(r.what || ''))) return null;  // 异常小值（模型换算错）丢弃
+  return Math.round(secs);
+}
+
+/* 从最近对话提取约定时间 */
+async function scheduleReminderScan(p) {
+  if (!DB.settings.remindOn || !DB.settings.key) return;
+  try {
+    const recent = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-6);
+    if (!recent.length) return;
+    const lines = recent.map(m => (m.r === 'u' ? '对方' : '你') + '：' + m.c).join('\n');
+    const prompt = '从以下最近的对话里，找出双方新约定的、尚未到期的见面或做事时间（比如“20分钟后见”“1小时后”“晚上8点见”）。只输出JSON：{"reminders":[{"secs":距现在多少秒后到期,"what":"约定内容，保留原文的时间表述"}]}，没有就输出{"reminders":[]}。注意：“等会说”“改天”“有空聊”这类模糊的不算；secs 必须精确换算（20分钟=1200秒、1小时=3600秒），算不准就输出-1。\n' + lines;
+    let out = '';
+    const res = await rawChat([{ role: 'system', content: '你是时间提取工具。只输出JSON，不输出其他内容。' }, { role: 'user', content: prompt }], d => { out += d; }, null);
+    if (!res.ok || !out) return;
+    const i0 = out.indexOf('{'), i1 = out.lastIndexOf('}');
+    if (i0 < 0 || i1 <= i0) return;
+    const j = JSON.parse(out.slice(i0, i1 + 1));
+    const now = Date.now();
+    (j.reminders || []).forEach(r => {
+      if (!r || !r.what) return;
+      const secs = fixReminderSecs(r);
+      if (!secs) return;
+      const due = now + secs * 1000;
+      if (!p.reminders) p.reminders = [];
+      if (p.reminders.some(x => Math.abs(x.due - due) < 60000 && x.what === r.what)) return;
+      p.reminders.push({ due: due, what: r.what, fired: false });
+    });
+    if (p.reminders.length > 10) p.reminders = p.reminders.slice(-10);
+    save();
+  } catch (e) { /* 提取失败静默忽略 */ }
+}
+/* 到点检查：约定时间到了，角色主动发消息 */
+function checkReminders() {
+  if (!DB || !DB.settings.remindOn || streaming) return;
+  const now = Date.now();
+  DB.personas.forEach(p => {
+    if (!p.reminders) return;
+    p.reminders.forEach(r => {
+      if (r.fired || r.due > now) return;
+      r.fired = true;
+      save();
+      proactiveMsg(p, '约定的时间到了（' + r.what + '）。用你的口吻给他发一条消息，像“我到了”“到时间了”，符合你的性格，就一条，简短。');
+    });
+  });
+}
+
+/* 从最近聊天提取记忆 */
+async function extractMemory() {
+  const p = getPx();
+  if (!DB.settings.key) { toast('需要先配置 API Key（底部「设置」页）'); return; }
+  const recent = p.msgs.filter(m => m.r === 'u' || m.r === 'a').slice(-30);
+  if (!recent.length) { toast('还没有可提取的聊天记录'); return; }
+  toast('正在提取记忆…', 3000);
+  const lines = recent.map(m => (m.r === 'u' ? '我：' : p.name + '：') + m.c).join('\n');
+  const prompt = '以下是一段微信聊天记录。请从中提取需要长期记住的内容，只输出一个JSON（不要任何其他文字）：\n' +
+    '{"prefs":["用户喜欢的称呼、用词、互动方式、癖好、敏感词等"],"facts":["关于用户的个人信息"],"events":["你们之间新发生的重要事件"]}\n' +
+    '聊天记录：\n' + lines;
+  let out = '';
+  const res = await rawChat([{ role: 'system', content: '你是一个记忆提取工具。只输出JSON，不输出任何其他内容。' }, { role: 'user', content: prompt }], d => { out += d; }, null);
+  if (!res.ok || !out) { toast('提取失败：' + (res.error || '无输出')); return; }
+  try {
+    const i0 = out.indexOf('{'), i1 = out.lastIndexOf('}');
+    const j = JSON.parse(out.slice(i0, i1 + 1));
+    let n = 0;
+    (j.prefs || []).forEach(x => { if (x && !p.prefs.includes(x)) { p.prefs.push(x); n++; } });
+    (j.facts || []).forEach(x => { if (x && !p.memories.includes(x)) { p.memories.push(x); n++; } });
+    (j.events || []).forEach(x => { if (x && !p.shared.includes(x)) { p.shared.push(x); n++; } });
+    save();
+    toast('已学会 ' + n + ' 条新东西，写进他的记忆了');
+  } catch (e) {
+    toast('模型返回格式不标准，请重试一次');
+  }
+}
+
+/* ================= 朋友圈 ================= */
+function fmtAgo(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+  if (diff < 172800000) return '昨天';
+  const d = new Date(ts);
+  return (d.getMonth() + 1) + '月' + d.getDate() + '日';
+}
+function renderMoments() {
+  const box = $('momentsList');
+  box.innerHTML = '';
+  if (!DB.moments || !DB.moments.length) {
+    box.innerHTML = '<div class="empty"><div class="big">🫧</div>TA们还没有发过动态<br><br><button class="addbtn" onclick="showCompose()">＋ 发第一条</button></div>';
+    return;
+  }
+  DB.moments.slice().sort((a, b) => b.t - a.t).forEach(m => {
+    const isMe = m.pid === 'me';
+    const p = isMe ? null : (DB.personas.find(x => x.id === m.pid) || (m.pname ? DB.personas.find(x => x.name === m.pname) : null));
+    const post = el('div', 'mpost');
+    const hd = el('div', 'mhd');
+    const ava = el('div', 'mava');
+    setAva(ava,
+      isMe ? DB.settings.myAvatarImg : (p ? p.avatar : null),
+      isMe ? DB.settings.myAvatar : (p ? (p.name || '?')[0] : '?'),
+      isMe ? '#6B9F6E' : (p ? (p.avatarColor || colorFor(p.name)) : '#888'));
+    const nm = el('div', 'mnm', isMe ? '我' : (p ? p.name : 'TA'));
+    if (!isMe && p) {
+      hd.style.cursor = 'pointer';
+      hd.onclick = () => openRoleDetail(p.id, 'moments');
+    }
+    const tme = el('div', 'mtime', fmtAgo(m.t));
+    tme.style.marginLeft = 'auto';
+    hd.appendChild(ava); hd.appendChild(nm); hd.appendChild(tme);
+    post.appendChild(hd);
+    if (m.text) post.appendChild(el('div', 'mtxt', m.text));
+    if (m.img) {
+      const imwrap = el('div', 'mimg');
+      if (m.img.src) {
+        const img = document.createElement('img');
+        img.src = m.img.src;
+        img.alt = m.img.d || '照片';
+        imwrap.appendChild(img);
+      } else {
+        const ph = el('div', 'imgload', '📷 ' + trunc(m.img.d || '照片', 18) + '…');
+        imwrap.appendChild(ph);
+        cacheImg(m.img).then(src => {
+          if (src) {
+            m.img.src = src;
+            save();
+            const img = document.createElement('img');
+            img.src = src;
+            img.alt = m.img.d || '照片';
+            ph.replaceWith(img);
+          } else {
+            ph.textContent = '（图：' + (m.img.d || '照片') + '）';
+          }
+        });
+      }
+      post.appendChild(imwrap);
+    }
+    const mbar = el('div', 'mbar');
+    const lk = el('div', 'act' + (m.liked ? ' liked' : ''));
+    lk.appendChild(el('span', '', m.liked ? '♥' : '♡'));
+    lk.appendChild(el('span', '', m.liked ? '取消' : '赞'));
+    lk.onclick = () => toggleLike(m);
+    const cm = el('div', 'act');
+    cm.appendChild(el('span', '', '💬'));
+    cm.appendChild(el('span', '', '评论'));
+    cm.onclick = () => { const ip = post.querySelector('.cmtinput'); if (ip) ip.classList.toggle('show'); };
+    mbar.appendChild(lk); mbar.appendChild(cm);
+    post.appendChild(mbar);
+    const likeNames = m.liked ? (m.likes || []).concat(['我']) : (m.likes || []);
+    if (likeNames.length || (m.comments || []).length) {
+      const foot = el('div', 'mfoot');
+      const likeLine = el('div', 'likeline');
+      if (likeNames.length) {
+        likeLine.classList.add('show');
+        const h = el('span', 'lk', '♥');
+        h.onclick = () => toggleLike(m);
+        likeLine.appendChild(h);
+        likeLine.appendChild(el('span', '', likeNames.join('、')));
+      }
+      foot.appendChild(likeLine);
+      (m.comments || []).forEach(c => {
+        const cl = el('div', 'cmt');
+        cl.appendChild(el('b', '', c.who));
+        cl.appendChild(document.createTextNode(c.text));
+        foot.appendChild(cl);
+      });
+      post.appendChild(foot);
+    }
+    const ip = el('div', 'cmtinput');
+    const ipt = el('input');
+    ipt.type = 'text';
+    ipt.placeholder = '评论…';
+    const sbtn = el('button', '', '发送');
+    const send = () => {
+      const t = ipt.value.trim();
+      if (!t) return;
+      m.comments = m.comments || [];
+      m.comments.push({ who: '我', text: t });
+      save();
+      renderMoments();
+      if (!isMe && p) maybeReplyToComment(m, t);
+    };
+    sbtn.onclick = send;
+    ipt.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+    ip.appendChild(ipt); ip.appendChild(sbtn);
+    post.appendChild(ip);
+    box.appendChild(post);
+  });
+}
+function toggleLike(m) {
+  m.liked = !m.liked;
+  save();
+  renderMoments();
+}
+/* 你评论后，动态作者（个别角色）过一会儿回复你的评论 */
+function maybeReplyToComment(m, userText) {
+  const p = DB.personas.find(x => x.id === m.pid);
+  if (!p || !DB.settings.key) return;
+  if (Math.random() > 0.65) return;   // 个别人回，不是人人都回
+  setTimeout(async () => {
+    let out = '';
+    const res = await rawChat([
+      { role: 'system', content: buildMomentSystem(p) },
+      { role: 'user', content: '你的朋友圈动态《' + trunc(m.text, 60) + '》下面，TA评论了一句：「' + userText + '」。以你的口吻简短回复这条评论，就一句，自然，不要复述评论内容。' }
+    ], d => { out += d; }, null);
+    const t = trimReply(cleanProactive(out));
+    if (t) {
+      m.comments = m.comments || [];
+      m.comments.push({ who: p.name, text: t });
+      save();
+      if ($('page-moments').classList.contains('active')) renderMoments();
+    }
+  }, 8000 + Math.random() * 12000);
+}
+/* 发朋友圈时用的角色提示词（轻量版） */
+function buildMomentSystem(p) {
+  const eff = nowEff(p);
+  const L = [];
+  L.push('你是' + p.name + '，真实存在的活人，不是AI。现在是' + nowStr(eff) + '，你此刻正在：' + schedAct(p, eff) + '。');
+  L.push('你在发微信朋友圈。写一条动态：1-2句短句、口语，符合你的性格和说话方式，内容是你此刻生活里的真实日常或心情。');
+  L.push('可以偶尔用【图：内容描述】配一张生活照（第一人称、画面无人物）。绝不写解释、标签、表情符号列表、动作描写。只输出动态正文。');
+  const c = p.card || {};
+  const cd = [];
+  Object.keys(c).forEach(k => { if (c[k]) cd.push((KEY_LABELS[k] || k) + '：' + c[k]); });
+  if (cd.length) L.push('【你的基本信息】' + cd.join('；'));
+  const v = p.voice;
+  if (v) {
+    L.push('【你的说话方式】' + (v.rhythm || ''));
+    if (v.dict && v.dict.length && p.injectMode !== 'rich') L.push('语气参考：' + pickDict(v.dict, 8).join('；'));
+  }
+  return L.join('\n');
+}
+/* 默契圈层：其他人看到这条动态，点赞 + 偶尔留一句评论 */
+function reactToMoment(m) {
+  const others = DB.personas.filter(x => x.id !== m.pid);
+  if (!others.length) return;
+  const sh = others.slice().sort(() => Math.random() - 0.5);
+  const nLikes = 1 + Math.floor(Math.random() * Math.min(3, others.length));
+  const likers = sh.slice(0, nLikes).map(x => x.name);
+  m.likes = (m.likes || []).concat(likers.filter(n => !(m.likes || []).includes(n)));
+  if (Math.random() < 0.6 && sh.length) {
+    const who = sh[0];
+    const pool = (window.MOMENT_REACTIONS && window.MOMENT_REACTIONS[who.name]) || [];
+    if (pool.length) {
+      m.comments = m.comments || [];
+      m.comments.push({ who: who.name, text: pool[Math.floor(Math.random() * pool.length)] });
+    }
+  }
+  save();
+}
+/* 生成一条角色动态：有 Key 走 AI（按人设），没 Key 用预设池兜底 */
+async function genMoment(p) {
+  let text = '';
+  let imgDesc = null;
+  if (DB.settings.key) {
+    try {
+      let out = '';
+      const res = await rawChat([
+        { role: 'system', content: buildMomentSystem(p) },
+        { role: 'user', content: '（现在发一条你的朋友圈动态，只输出动态正文）' }
+      ], d => { out += d; }, null);
+      if (res.ok && out.trim()) {
+        const parsed = extractPhotos(trimReply(out.trim()));
+        text = parsed.text;
+        if (parsed.imgs.length) imgDesc = parsed.imgs[0].d;
+      }
+    } catch (e) { text = ''; }
+  }
+  if (!text) {
+    const L = window.MOMENTS && window.MOMENTS.find(x => x.name === p.name);
+    const pool = L ? (L.posts || []) : [];
+    const used = DB.settings.momentsUsed || {};
+    const u = used[p.name] || 0;
+    if (u >= pool.length) return;   // 池子用尽且无 AI 可用
+    text = pool[u].text;
+    used[p.name] = u + 1;
+    DB.settings.momentsUsed = used;
+  }
+  if (!text) return;
+  const m = { id: 'm' + Date.now() + Math.floor(Math.random() * 1e6), pid: p.id, text: text, t: Date.now(), likes: [], comments: [], liked: false };
+  if (imgDesc) m.img = { d: imgDesc };
+  DB.moments.push(m);
+  save();
+  reactToMoment(m);
+  if (imgDesc) {
+    cacheImg(m.img).then(src => { if (src) { m.img.src = src; save(); } });
+  }
+}
+/* 定时更新：活泼的一天一条，其余两天一条；一次最多补发2位，10分钟冷却 */
+async function autoMoment() {
+  if (!DB.moments) return;
+  const now = Date.now();
+  if (now - (DB.settings.momentsGenAt || 0) < 10 * 60000) return;
+  const due = DB.personas.filter(p => {
+    const freq = (window.MOMENTS_META && window.MOMENTS_META[p.name] && window.MOMENTS_META[p.name].freq) || 48;
+    let last = 0;
+    DB.moments.forEach(m => { if (m.pid === p.id && m.t > last) last = m.t; });
+    return now - last >= freq * 3600000;
+  });
+  if (!due.length) return;
+  DB.settings.momentsGenAt = now;
+  save();
+  for (const p of due.slice(0, 2)) {
+    await genMoment(p);
+  }
+  if (document.getElementById('page-moments').classList.contains('active')) renderMoments();
+}
+/* 发布我的朋友圈 */
+function postMyMoment(text, imgData) {
+  const m = {
+    id: 'm' + Date.now() + Math.floor(Math.random() * 1e6),
+    pid: 'me',
+    text: text || '分享了一张照片',
+    t: Date.now(),
+    likes: [],
+    comments: [],
+    liked: false,
+    mine: true
+  };
+  if (imgData) m.img = { src: imgData, d: '照片' };
+  DB.moments.push(m);
+  save();
+  // 他们看到你的动态，过一会儿点赞评论
+  setTimeout(() => {
+    reactToMoment(m);
+    if (document.getElementById('page-moments').classList.contains('active')) renderMoments();
+  }, 15000 + Math.random() * 20000);
+}
+/* 发朋友圈面板 */
+function showCompose() {
+  const box = $('panelComposeBody');
+  box.innerHTML = '';
+  const d = el('details', 'sec');
+  d.open = true;
+  d.appendChild(el('summary', '', '发一条朋友圈'));
+  const cb = el('div', 'cb');
+  const ta = el('textarea');
+  ta.placeholder = '这一刻的想法…';
+  ta.style.minHeight = '100px';
+  const imgPrev = el('div', 'card');
+  imgPrev.style.display = 'none';
+  let imgData = null;
+  const bImg = el('button', 'mini-btn', '📷 添加照片');
+  bImg.onclick = () => pickImage(dataUrl => {
+    if (dataUrl) {
+      imgData = dataUrl;
+      imgPrev.style.display = 'block';
+      imgPrev.innerHTML = '';
+      const im = document.createElement('img');
+      im.src = dataUrl;
+      im.style.width = '100%';
+      im.style.borderRadius = '6px';
+      imgPrev.appendChild(im);
+    }
+  }, 768);
+  const bPub = el('button', 'gbtn', '发布');
+  bPub.onclick = () => {
+    const text = ta.value.trim();
+    if (!text && !imgData) { toast('写点什么再发'); return; }
+    postMyMoment(text, imgData);
+    closePanel('panelCompose');
+    showPage('moments');
+    renderMoments();
+    toast('已发布');
+  };
+  cb.appendChild(ta); cb.appendChild(bImg); cb.appendChild(imgPrev); cb.appendChild(bPub);
+  d.appendChild(cb);
+  box.appendChild(d);
+  showPanel('panelCompose');
+}
+
+/* ================= 面板：人设 ================= */
+function showPersonaPanel() {
+  const p = getPx();
+  const box = $('panelPersonaBody');
+  box.innerHTML = '';
+  box.appendChild(secBase(p));
+  box.appendChild(secList(p, '生平', p.bio, 'bio', true));
+  box.appendChild(secList(p, '记忆碎片', p.memories, 'memories', false));
+  box.appendChild(secList(p, '共同经历', p.shared, 'shared', false));
+  box.appendChild(secList(p, '对话规则（永久）', p.rules, 'rules', false));
+  box.appendChild(secList(p, '他已学会的（偏好投喂）', p.prefs, 'prefs', false));
+  const danger = el('div', 'card');
+  const cb = el('div', 'cb');
+  const b1 = el('button', 'rbtn', '清空聊天记录');
+  b1.onclick = () => { if (confirm('清空与 ' + p.name + ' 的全部聊天记录？')) { p.msgs = []; save(); closePanel('panelPersona'); renderChat(); } };
+  const b2 = el('button', 'rbtn', '删除 ' + p.name);
+  b2.onclick = () => {
+    if (confirm('彻底删除 ' + p.name + '？人设、记忆、聊天记录都会消失。')) {
+      if (window.LOVERS && window.LOVERS.some(L => L.name === p.name)) {
+        if (!DB.settings.removedLovers) DB.settings.removedLovers = [];
+        if (!DB.settings.removedLovers.includes(p.name)) DB.settings.removedLovers.push(p.name);
+      }
+      DB.personas = DB.personas.filter(x => x.id !== p.id);
+      save(); closePanel('panelPersona'); backHome();
+    }
+  };
+  cb.appendChild(b1); cb.appendChild(b2);
+  danger.appendChild(cb);
+  box.appendChild(danger);
+  showPanel('panelPersona');
+}
+function secBase(p) {
+  const d = el('details', 'sec');
+  d.open = true;
+  const sum = el('summary', '', '基础信息');
+  d.appendChild(sum);
+  const cb = el('div', 'cb');
+  const f1 = el('div', 'fld');
+  f1.appendChild(el('label', '', '名字'));
+  const iName = el('input');
+  iName.type = 'text'; iName.value = p.name || '';
+  iName.oninput = () => { p.name = iName.value.trim() || p.name; save(); };
+  f1.appendChild(iName);
+  const f2 = el('div', 'fld');
+  f2.appendChild(el('label', '', '昵称'));
+  const iNick = el('input');
+  iNick.type = 'text'; iNick.value = p.nickname || '';
+  iNick.oninput = () => { p.nickname = iNick.value; save(); };
+  f2.appendChild(iNick);
+  const f3 = el('div', 'fld');
+  f3.appendChild(el('label', '', '人设卡（每行一条，格式：字段：内容）'));
+  const taCard = el('textarea');
+  taCard.value = Object.keys(p.card || {}).map(k => k + '：' + (p.card[k] || '')).join('\n');
+  taCard.oninput = () => {
+    const c = {};
+    taCard.value.split('\n').forEach(line => {
+      const i = line.indexOf('：');
+      if (i < 0) i = line.indexOf(':');
+      if (i > 0) c[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    });
+    p.card = c; p._userEdited = true; save();
+  };
+  f3.appendChild(taCard);
+  const f6 = el('div', 'fld');
+  f6.appendChild(el('label', '', '基础设定层（RS 永久写入，每行一条；清空聊天记录不影响这里）'));
+  const taBase = el('textarea');
+  taBase.value = (p.base || []).join('\n');
+  taBase.oninput = () => { p.base = taBase.value.split('\n').map(s => s.trim()).filter(Boolean); save(); };
+  f6.appendChild(taBase);
+  const f7 = el('div', 'fld');
+  f7.appendChild(el('label', '', '复杂背景注入（生平+记忆碎片+共同经历；默认关，开了回复可能变飘）'));
+  const cbDeep = el('input');
+  cbDeep.type = 'checkbox';
+  cbDeep.checked = !!p.deepBg;
+  cbDeep.onchange = () => { p.deepBg = cbDeep.checked; save(); };
+  f7.appendChild(cbDeep);
+  const f4 = el('div', 'fld');
+  f4.appendChild(el('label', '', '头像颜色（CSS 颜色值）'));
+  const iCol = el('input');
+  iCol.type = 'text'; iCol.value = p.avatarColor || '';
+  iCol.oninput = () => { p.avatarColor = iCol.value || colorFor(p.name); save(); };
+  f4.appendChild(iCol);
+  const f5 = el('div', 'fld');
+  f5.appendChild(el('label', '', '头像（从手机相册上传，仅存本地）'));
+  const avaPrev = el('div', 'avatar', '');
+  avaPrev.style.width = '64px'; avaPrev.style.height = '64px'; avaPrev.style.marginBottom = '8px';
+  setAva(avaPrev, p.avatar, (p.name || '?')[0], p.avatarColor || colorFor(p.name));
+  const bUp = el('button', 'mini-btn', '📷 从相册选择');
+  bUp.onclick = () => pickImage(dataUrl => {
+    if (dataUrl) { p.avatar = dataUrl; save(); setAva(avaPrev, p.avatar, '', p.avatarColor || colorFor(p.name)); }
+  });
+  const bClr = el('button', 'mini-btn', '恢复默认字母头像');
+  bClr.onclick = () => { p.avatar = null; p._avatarCleared = true; save(); setAva(avaPrev, null, (p.name || '?')[0], p.avatarColor || colorFor(p.name)); };
+  f5.appendChild(avaPrev); f5.appendChild(bUp); f5.appendChild(bClr);
+  cb.appendChild(f1); cb.appendChild(f2); cb.appendChild(f3); cb.appendChild(f6); cb.appendChild(f7); cb.appendChild(f4); cb.appendChild(f5);
+  d.appendChild(cb);
+  return d;
+}
+function secList(p, title, arr, key, isBio) {
+  const d = el('details', 'sec');
+  const sum = el('summary', '', title + '（' + arr.length + '）');
+  d.appendChild(sum);
+  const cb = el('div', 'cb');
+  const render = () => {
+    cb.innerHTML = '';
+    arr.forEach((item, idx) => {
+      const row = el('div', 'rowitem');
+      if (isBio) {
+        const ti = el('input');
+        ti.type = 'text'; ti.value = item.t || '';
+        ti.placeholder = '章节名';
+        ti.oninput = () => { item.t = ti.value; save(); };
+        row.appendChild(ti);
+        const del = el('button', 'del', '×');
+        del.onclick = () => { arr.splice(idx, 1); save(); render(); };
+        row.appendChild(del);
+        cb.appendChild(row);
+        const ta = el('textarea');
+        ta.value = item.c || '';
+        ta.oninput = () => { item.c = ta.value; save(); };
+        const r2 = el('div', 'rowitem');
+        r2.appendChild(ta);
+        cb.appendChild(r2);
+      } else {
+        const ta = el('textarea');
+        ta.value = item;
+        ta.oninput = () => { arr[idx] = ta.value; if (key === 'rules') p._userEdited = true; save(); };
+        row.appendChild(ta);
+        const del = el('button', 'del', '×');
+        del.onclick = () => { arr.splice(idx, 1); save(); render(); };
+        row.appendChild(del);
+        cb.appendChild(row);
+      }
+    });
+    const add = el('button', 'mini-btn', '+ 添加' + (isBio ? '章节' : '一条'));
+    add.onclick = () => {
+      if (isBio) arr.push({ t: '新章节', c: '' }); else arr.push('');
+      save(); render();
+    };
+    cb.appendChild(add);
+  };
+  render();
+  d.appendChild(cb);
+  return d;
+}
+
+/* ================= 面板：设置 / 帮助 ================= */
+function fillSettings(box) {
+  const s = DB.settings;
+  box.innerHTML = '';
+  const d0 = el('details', 'sec');
+  d0.appendChild(el('summary', '', '外观'));
+  const cb0 = el('div', 'cb');
+  const f0 = el('div', 'fld');
+  f0.appendChild(el('label', '', '我的头像（从手机相册上传，仅存本地）'));
+  const avaMine = el('div', 'avatar', '');
+  avaMine.style.width = '64px'; avaMine.style.height = '64px'; avaMine.style.marginBottom = '8px';
+  setAva(avaMine, s.myAvatarImg, s.myAvatar, '#6B9F6E');
+  const bMup = el('button', 'mini-btn', '📷 从相册选择');
+  bMup.onclick = () => pickImage(dataUrl => {
+    if (dataUrl) { s.myAvatarImg = dataUrl; save(); setAva(avaMine, s.myAvatarImg, s.myAvatar, '#6B9F6E'); }
+  });
+  const bMclr = el('button', 'mini-btn', '恢复默认');
+  bMclr.onclick = () => { s.myAvatarImg = ''; s._myAvatarCleared = true; save(); setAva(avaMine, null, s.myAvatar, '#6B9F6E'); };
+  f0.appendChild(avaMine); f0.appendChild(bMup); f0.appendChild(bMclr);
+  cb0.appendChild(f0);
+  d0.appendChild(cb0);
+  box.appendChild(d0);
+  const d1 = el('details', 'sec');
+  d1.open = true;
+  d1.appendChild(el('summary', '', 'AI 接口（对话必需）'));
+  const cb1 = el('div', 'cb');
+  const f1 = el('div', 'fld');
+  f1.appendChild(el('label', '', 'API Key（只存你手机本地，不上传任何服务器）'));
+  const iKey = el('input');
+  iKey.type = 'password'; iKey.value = s.key || '';
+  iKey.placeholder = 'sk-...';
+  iKey.oninput = () => { s.key = iKey.value.trim(); save(); };
+  f1.appendChild(iKey);
+  const f2 = el('div', 'fld');
+  f2.appendChild(el('label', '', '接口地址（OpenAI 兼容均可）'));
+  const iBase = el('input');
+  iBase.type = 'text'; iBase.value = s.base;
+  iBase.oninput = () => { s.base = iBase.value.trim() || 'https://api.deepseek.com'; save(); };
+  f2.appendChild(iBase);
+  const f3 = el('div', 'fld');
+  f3.appendChild(el('label', '', '模型名'));
+  const iModel = el('input');
+  iModel.type = 'text'; iModel.value = s.model;
+  iModel.oninput = () => { s.model = iModel.value.trim() || 'deepseek-chat'; save(); };
+  f3.appendChild(iModel);
+  const f4 = el('div', 'fld');
+  f4.appendChild(el('label', '', '温度（0-2，越高越放得开）'));
+  const iTemp = el('input');
+  iTemp.type = 'text'; iTemp.value = String(s.temp);
+  iTemp.oninput = () => { s.temp = parseFloat(iTemp.value) || 0.9; save(); };
+  f4.appendChild(iTemp);
+  const f5 = el('div', 'fld');
+  f5.appendChild(el('label', '', '最长回复字数（超出自动截断，0=不限）'));
+  const iReply = el('input');
+  iReply.type = 'text'; iReply.value = String(s.maxReply);
+  iReply.oninput = () => { s.maxReply = parseInt(iReply.value) || 0; save(); };
+  f5.appendChild(iReply);
+  const f6 = el('div', 'fld');
+  f6.appendChild(el('label', '', '携带聊天记忆条数（越大越记得久，越费钱）'));
+  const iHist = el('input');
+  iHist.type = 'text'; iHist.value = String(s.maxHist);
+  iHist.oninput = () => { s.maxHist = parseInt(iHist.value) || 400; save(); };
+  f6.appendChild(iHist);
+  const f7 = el('div', 'fld');
+  f7.appendChild(el('label', '', '照片功能（TA 发图分享日常；免费随机网络图库，不调用付费生图）'));
+  const cbImg = el('input');
+  cbImg.type = 'checkbox';
+  cbImg.checked = s.imgOn !== false;
+  cbImg.onchange = () => { s.imgOn = cbImg.checked; save(); };
+  f7.appendChild(cbImg);
+  const f8 = el('div', 'fld');
+  f8.appendChild(el('label', '', '追问功能（你没回复时，TA 过一会儿追一条，仅一条）'));
+  const cbFoll = el('input');
+  cbFoll.type = 'checkbox';
+  cbFoll.checked = s.followOn !== false;
+  cbFoll.onchange = () => { s.followOn = cbFoll.checked; save(); };
+  f8.appendChild(cbFoll);
+  const f9 = el('div', 'fld');
+  f9.appendChild(el('label', '', '追问等待秒数（默认30）'));
+  const iFoll = el('input');
+  iFoll.type = 'text'; iFoll.value = String(s.followDelay);
+  iFoll.oninput = () => { s.followDelay = parseInt(iFoll.value) || 30; save(); };
+  f9.appendChild(iFoll);
+  const f10 = el('div', 'fld');
+  f10.appendChild(el('label', '', '约定提醒（约好的时间到了，TA 主动发消息说“我到了”）'));
+  const cbRem = el('input');
+  cbRem.type = 'checkbox';
+  cbRem.checked = s.remindOn !== false;
+  cbRem.onchange = () => { s.remindOn = cbRem.checked; save(); };
+  f10.appendChild(cbRem);
+  cb1.appendChild(f1); cb1.appendChild(f2); cb1.appendChild(f3); cb1.appendChild(f4); cb1.appendChild(f5); cb1.appendChild(f6); cb1.appendChild(f7); cb1.appendChild(f8); cb1.appendChild(f9); cb1.appendChild(f10);
+  d1.appendChild(cb1);
+  box.appendChild(d1);
+
+  const d2 = el('details', 'sec');
+  d2.appendChild(el('summary', '', '备份'));
+  const cb2 = el('div', 'cb');
+  const b1 = el('button', 'gbtn', '导出全部数据（JSON 文件）');
+  b1.onclick = exportAll;
+  const b2 = el('button', 'gbtn', '导入备份');
+  const fin = el('input');
+  fin.type = 'file'; fin.accept = '.json'; fin.style.display = 'none';
+  fin.onchange = importAll;
+  b2.onclick = () => fin.click();
+  const h = el('div', 'hint', 'iOS 偶尔会清理网页本地存储，定期导出备份最保险。');
+  cb2.appendChild(b1); cb2.appendChild(b2); cb2.appendChild(fin); cb2.appendChild(h);
+  d2.appendChild(cb2);
+  box.appendChild(d2);
+
+  const d3 = el('details', 'sec');
+  d3.appendChild(el('summary', '', '隐私说明'));
+  const cb3 = el('div', 'cb');
+  cb3.appendChild(el('div', 'hint',
+    '· 所有人设、记忆、聊天记录、API Key 只存在你这部手机里，不上传、无账号、无统计。\n' +
+    '· 对话内容会发送给你配置的 AI 接口（如 DeepSeek 官方），这是任何 AI 聊天都避免不了的；App 本身零过滤，不设任何词表。\n' +
+    '· 换手机或清缓存前，记得导出备份。'));
+  d3.appendChild(cb3);
+  box.appendChild(d3);
+}
+function showSettings() { fillSettings($('panelSettingsBody')); showPanel('panelSettings'); }
+function exportAll() {
+  const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  const d = new Date();
+  a.href = URL.createObjectURL(blob);
+  a.download = 'schat-backup-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function importAll(ev) {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const j = JSON.parse(rd.result);
+      if (!j || !Array.isArray(j.personas)) throw new Error('bad');
+      DB = j;
+      DB.settings = Object.assign({ key: '', base: 'https://api.deepseek.com', model: 'deepseek-chat', temp: 0.9, maxHist: 400, onboardDone: true, myAvatar: '我' }, DB.settings || {});
+      save();
+      renderHome();
+      toast('导入成功');
+    } catch (e) { toast('文件格式不正确'); }
+  };
+  rd.readAsText(f);
+  ev.target.value = '';
+}
+
+/* ================= 面板：新建情人 ================= */
+let addGenState = null;
+function showAdd() {
+  addGenState = null;
+  const box = $('panelAddBody');
+  box.innerHTML = '';
+  const d1 = el('details', 'sec');
+  d1.open = true;
+  d1.appendChild(el('summary', '', '新建秘密情人'));
+  const cb = el('div', 'cb');
+  const f1 = el('div', 'fld');
+  f1.appendChild(el('label', '', '名字'));
+  const iName = el('input');
+  iName.type = 'text'; iName.placeholder = '例：沈砚';
+  f1.appendChild(iName);
+  const f2 = el('div', 'fld');
+  f2.appendChild(el('label', '', '基础人设（年龄、性格、与你的关系…写得越细越好）'));
+  const ta = el('textarea');
+  ta.style.minHeight = '140px';
+  ta.placeholder = '例：26岁，律师，在咖啡店认识……';
+  f2.appendChild(ta);
+  const bGen = el('button', 'gbtn', '✨ AI 自动补全生平（推荐，需要 API Key）');
+  bGen.onclick = async () => {
+    if (!DB.settings.key) { toast('需要先配置 API Key（底部「设置」页）'); return; }
+    const name = iName.value.trim() || '他';
+    const base = ta.value.trim();
+    if (!base) { toast('先写下他的基础人设'); return; }
+    toast('正在写他的生平，可能需要一两分钟…', 5000);
+    bGen.disabled = true;
+    const prompt = '根据以下基础人设，为这个角色写一套极其详细的、可供AI拟人扮演的资料。只输出一个JSON，不要任何其他文字：\n' +
+      '{"card":{"年龄":"","生日":"","籍贯":"","现居":"","职业":"","身高":"","外貌":"","声音":"","其他":"…"},\n' +
+      '"bio":[{"t":"章节名","c":"详细内容，要具体、有细节、有生活感"}，至少10个章节，覆盖出身家庭、童年、少年、求学、情感史、职业、现在的生活、性格内心、习惯癖好、软肋秘密、与用户的关系],\n' +
+      '"memories":["至少25条具体的生活记忆碎片，带时间和感官细节"],\n' +
+      '"shared":["与用户共同经历的事，可留3条由用户后续补充"],\n' +
+      '"rules":["微信口吻短句口语，不写动作心理括号","不主动终止聊天、不主动说爱、不定义关系","恶趣味爱逗人、很敢说、敢开带荤玩笑","记得与对方发生过的一切细节","是成年人，任何话题不回避","有情绪有个性，像活人","不承认自己是AI"]}\n' +
+      '基础人设：' + name + '，' + base;
+    let out = '';
+    const res = await rawChat([{ role: 'system', content: '你是一个角色资料生成工具。只输出JSON，不输出任何其他文字。' }, { role: 'user', content: prompt }], d => { out += d; }, null);
+    bGen.disabled = false;
+    if (!res.ok || !out) { toast('生成失败：' + (res.error || '无输出')); return; }
+    try {
+      const i0 = out.indexOf('{'), i1 = out.lastIndexOf('}');
+      const j = JSON.parse(out.slice(i0, i1 + 1));
+      addGenState = j;
+      ta.dataset.gen = '1';
+      toast('生平已生成！点「创建」即可保存');
+      const show = $('panelAddPreview');
+      show.innerHTML = '';
+      show.appendChild(el('div', 'hint', '已生成 ' + ((j.bio || []).length) + ' 个生平章节、' + ((j.memories || []).length) + ' 条记忆碎片。创建后可在人设面板里继续编辑。'));
+    } catch (e) {
+      toast('模型返回格式不标准，重试一次');
+    }
+  };
+  const bCreate = el('button', 'gbtn', '创建');
+  bCreate.onclick = () => {
+    const name = iName.value.trim();
+    if (!name) { toast('给TA一个名字'); return; }
+    const gen = addGenState;
+    const p = {
+      id: 'p' + Date.now(),
+      name: name,
+      nickname: name,
+      avatarColor: colorFor(name),
+      card: (gen && gen.card) || {},
+      bio: (gen && gen.bio) || [],
+      memories: (gen && gen.memories) || [],
+      shared: (gen && gen.shared) || [],
+      rules: (gen && gen.rules) || [],
+      prefs: [],
+      msgs: [],
+      createdAt: Date.now()
+    };
+    DB.personas.push(p);
+    save();
+    closePanel('panelAdd');
+    renderHome();
+    toast('「' + name + '」创建好了，去打个招呼吧');
+    openChat(p.id);
+  };
+  cb.appendChild(f1); cb.appendChild(f2); cb.appendChild(bGen);
+  const show = el('div', 'card');
+  show.id = 'panelAddPreview';
+  cb.appendChild(show);
+  cb.appendChild(bCreate);
+  d1.appendChild(cb);
+  box.appendChild(d1);
+  showPanel('panelAdd');
+}
+
+/* ================= 面板通用 ================= */
+function showPanel(id) { $(id).classList.add('show'); }
+function closePanel(id) {
+  $(id).classList.remove('show');
+  if (id === 'panelPersona' || id === 'panelSettings' || id === 'panelAdd') save();
+  if (cur) { $('chatName').textContent = getP(cur).name; renderHome(); renderChat(); }
+}
+
+/* ================= 弹层（＋菜单 / 聊天菜单 / 帮助） ================= */
+function showSheet(which) { $(which).classList.add('show'); $('mask-' + which).classList.add('show'); }
+function hideSheet(which) { $(which).classList.remove('show'); $('mask-' + which).classList.remove('show'); }
+
+function showHelp() {
+  const box = $('panelHelpBody');
+  box.innerHTML = '';
+  const d = el('details', 'sec');
+  d.open = true;
+  d.appendChild(el('summary', '', '使用说明'));
+  const cb = el('div', 'cb');
+  const h = el('div', 'hint');
+  h.innerHTML =
+    '<b>聊天</b>：像用微信一样发消息。回车发送。<br><br>' +
+    '<b>置顶</b>：聊天列表<b>长按</b>某个角色，置顶或取消置顶；置顶的排在最上面，带 📌 标记。<br><br>' +
+    '<b>角色</b>：底部「角色」页，每个 TA 的完整资料介绍（人设、作息、声音、记忆），点进去可发消息或编辑。<br><br>' +
+    '<b>朋友圈</b>：底部「朋友圈」页，TA 们会不定期发动态，你可以点赞、评论。<br><br>' +
+    '<b><span class="kbd">【X小时后】</span></b>：跳过时间，TA会按自己的时间表过完这段时间，例：<span class="kbd">【3小时后】</span><br>' +
+    '<b><span class="kbd">RS</span> + 空格 + 内容</b>：永久写入TA的基础设定层（清空聊天记录也不受影响），例：<span class="kbd">RS 以后每天睡前来找我</span><br>' +
+    '<b><span class="kbd">LS</span> + 空格 + 内容</b>：只本次会话临时调整，例：<span class="kbd">LS 现在开始用英文</span><br>' +
+    '<b><span class="kbd">LS 清空</span></b>：取消所有临时调整<br><br>' +
+    '<b>提取记忆</b>：聊天页右上 ⋯ → 提取记忆，TA 会把最近聊的内容里该记住的（你的喜好、称呼、秘密）写进长期记忆。<br><br>' +
+    '<b>添加主屏幕</b>：iPhone Safari 打开 → 分享按钮 → 添加到主屏幕，之后就像原生 App 一样打开。<br><br>' +
+    '<b>备份</b>：底部「设置」页 → 备份 → 导出。';
+  cb.appendChild(h);
+  d.appendChild(cb);
+  box.appendChild(d);
+  showPanel('panelHelp');
+}
+
+/* ================= 事件绑定 ================= */
+function bind() {
+  document.querySelectorAll('#tabbar .tab').forEach(t => {
+    t.onclick = () => {
+      const name = t.dataset.tab;
+      showPage(name);
+      if (name === 'home') renderHome();
+      if (name === 'roles') renderRoles();
+      if (name === 'moments') { autoMoment(); renderMoments(); }
+      if (name === 'set') fillSettings($('pageSetBody'));
+    };
+  });
+  $('roleBackBtn').onclick = () => { showPage(roleFrom || 'roles'); if ((roleFrom || 'roles') === 'roles') renderRoles(); };
+  $('momentsCamBtn').onclick = showCompose;
+  $('homeAddBtn').onclick = () => showSheet('sheetPlus');
+  $('chatMenuBtn').onclick = () => showSheet('sheetChat');
+  $('chatBackBtn').onclick = backHome;
+  $('quoteClose').onclick = clearQuote;
+  document.querySelectorAll('.mask').forEach(m => m.onclick = () => {
+    ['sheetPlus', 'sheetChat'].forEach(w => hideSheet(w));
+  });
+  document.querySelectorAll('.sheet .cancel').forEach(s => s.onclick = () => {
+    ['sheetPlus', 'sheetChat'].forEach(w => hideSheet(w));
+  });
+  $('miNew').onclick = () => { hideSheet('sheetPlus'); showAdd(); };
+  $('miSettings').onclick = () => { hideSheet('sheetPlus'); showSettings(); };
+  $('miHelp').onclick = () => { hideSheet('sheetPlus'); showHelp(); };
+  $('miExport').onclick = () => { hideSheet('sheetPlus'); exportAll(); };
+  $('miPersona').onclick = () => { hideSheet('sheetChat'); showPersonaPanel(); };
+  $('miExtract').onclick = () => { hideSheet('sheetChat'); extractMemory(); };
+  $('miClearChat').onclick = () => {
+    hideSheet('sheetChat');
+    const p = getPx();
+    if (confirm('清空与 ' + p.name + ' 的聊天记录？')) { p.msgs = []; save(); renderChat(); }
+  };
+  $('miHelp2').onclick = () => { hideSheet('sheetChat'); showHelp(); };
+}
+
+/* ================= 首次使用引导 ================= */
+function maybeOnboard() {
+  if (DB.settings.onboardDone) return;
+  $('onboard').classList.add('show');
+  $('onboardOk').onclick = () => {
+    DB.settings.onboardDone = true;
+    save();
+    $('onboard').classList.remove('show');
+    toast('先加主屏幕，再去底部「设置」页填 API Key');
+  };
+}
+
+/* ================= 启动 ================= */
+loadDB();
+renderHome();
+updateTabs('home');
+bind();
+maybeOnboard();
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js?v=1').catch(() => {});
+  });
+}
+/* 约定提醒轮询：每15秒检查一次 */
+setInterval(checkReminders, 15000);
