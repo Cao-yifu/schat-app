@@ -145,18 +145,20 @@
       const used = msgs.filter(function (m) { return m.intim; }).length;
       const pick = function (pool, n) {
         const out = [];
+        if (!pool || !pool.length) return out; // 素材池为空时不能取模，否则注入 undefined
         for (let i = 0; i < n; i++) out.push(pool[(used * n + i * 7 + (used % 3)) % pool.length]);
         return out;
       };
       const lines = [];
       if (heat >= 2) {
-        if (lib.scenes.hard) lines.push.apply(lines, pick(lib.scenes.hard, 2));
-        if (lib.scenes.bed) lines.push(pick(lib.scenes.bed, 1)[0]);
+        if (lib.scenes.hard && lib.scenes.hard.length) lines.push.apply(lines, pick(lib.scenes.hard, 2));
+        if (lib.scenes.bed && lib.scenes.bed.length) lines.push(pick(lib.scenes.bed, 1)[0]);
       } else if (heat === 1) {
-        if (lib.scenes.heat) lines.push.apply(lines, pick(lib.scenes.heat, 2));
+        if (lib.scenes.heat && lib.scenes.heat.length) lines.push.apply(lines, pick(lib.scenes.heat, 2));
       }
       const pool = (lib.per && lib.per[persona.name]) || (lib.per && lib.per['孙铎']) || [];
       if (pool.length) lines.push(pick(pool, 1)[0]);
+      if (!lines.length) return ''; // 整库为空就不注入，免得提示词里出现空参考段
       return '\n【本地素材参考】以下是几句贴合此刻气氛的话，可以照用、也可以按你的口吻重组，不要逐字背三句以上：\n' +
         lines.map(function (s) { return '· ' + s; }).join('\n');
     });
@@ -179,12 +181,13 @@
       const pattern = used % 3;
       if (pattern === 1) return null; // 融合轮次 → 走 API + 强制本地句
       if (pattern === 0 && short.length) {
-        return localReply(loverId, short[(used * 5 + 3) % short.length]);
+        return localReply(loverId, persona, short[(used * 5 + 3) % short.length]);
       }
       // pattern 2：中等句/长句交替（长短交错）
       let pool = (used % 2 === 0) ? (dirty.length ? dirty : moan) : (longp.length ? longp : dirty);
       if (!pool.length) pool = dirty.concat(moan);
-      return localReply(loverId, pool[(used * 5 + 3) % pool.length]);
+      if (!pool.length) return null; // 素材全空 → 回退 API，绝不能拿 undefined 去打字
+      return localReply(loverId, persona, pool[(used * 5 + 3) % pool.length]);
     });
   }
 
@@ -212,35 +215,44 @@
       if (!pool.length) return ctx;
       const line = pool[(used * 7 + 2) % pool.length];
       const pos = used % 2 === 0 ? '开头' : '结尾';
-      ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + '\n【必须原样包含】你这条回复必须以「' + line + '」' + pos + '，原样使用这句话，其余部分用你自己的话写，衔接自然。';
+      let sceneNote = '';
+      if (heat >= 2) sceneNote = '现在你们已经在床上了，正在进行中：不许提工作、行程、巡馆、开会、吃饭这类无关的事，你写的内容只能是此刻床上的反应、动作和下流话。';
+      ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + '\n【必须原样包含】你这条回复必须以「' + line + '」' + pos + '，原样使用这句话，其余部分用你自己的话写，衔接自然。' + sceneNote;
       return ctx;
     });
   }
 
-  /* 本地逐字打出（不调 API）：拟真快速打字 */
-  function localReply(loverId, text) {
+  /* 本地逐字打出（不调 API）：拟真快速打字。
+   * 返回的 Promise 在整段打完、入库后才 resolve——调用方（消息队列）会等它结束，
+   * 否则下一条消息会与正在进行的本地打字并发，顺序就乱了。 */
+  function localReply(loverId, persona, text) {
+    if (!text) return Promise.resolve(null); // 素材为空 → 回退 API 路径
     const msg = { id: util.uid(), role: 'you', type: 'text', text: '', ts: Date.now(), intim: true, local: true };
     let idx = 0;
     let appended = false;
-    const tick = function () {
-      idx = Math.min(text.length, idx + 2 + util.randInt(0, 2));
-      msg.text = text.slice(0, idx);
-      if (!appended) {
-        store.appendMsg(loverId, msg).then(function () {
-          engine.hooks.onMsg(loverId, msg, 'append');
-        });
-        appended = true;
-      } else {
-        engine.hooks.onMsg(loverId, msg, 'update');
-      }
-      if (idx >= text.length) {
-        store.updateMsg(loverId, msg);
-        return;
-      }
-      setTimeout(tick, 90 + util.randInt(0, 80));
-    };
-    tick();
-    return Promise.resolve(msg);
+    return new Promise(function (resolve) {
+      const tick = function () {
+        idx = Math.min(text.length, idx + 2 + util.randInt(0, 2));
+        msg.text = text.slice(0, idx);
+        if (!appended) {
+          appended = true;
+          store.appendMsg(loverId, msg).then(function () {
+            engine.hooks.onMsg(loverId, msg, 'append');
+          }).catch(function (e) { console.error('[localReply]', e); });
+        } else {
+          engine.hooks.onMsg(loverId, msg, 'update');
+        }
+        if (idx >= text.length) {
+          // 与 API 回复同一套收尾：追问定时、照片、裁剪、承诺提取
+          store.updateMsg(loverId, msg).catch(function (e) { console.error('[localReply]', e); }).then(function () {
+            return afterReply(loverId, persona, msg, {});
+          }).then(function () { resolve(msg); }, function () { resolve(msg); });
+          return;
+        }
+        setTimeout(tick, 90 + util.randInt(0, 80));
+      };
+      tick();
+    });
   }
 
   /* 组装动态层 ctx */
@@ -295,6 +307,7 @@
           const state = running[loverId] = {
             controller: controller, buffer: '', released: '', done: false,
             streamEnded: false, error: null, msg: null, timer: null, persistTimer: null,
+            maxChars: st.maxChars, // 停止截断要与 finalize 用同一上限（原来 stop 里写死 400）
           };
           engine.hooks.onTyping(loverId, true);
 
@@ -322,7 +335,7 @@
                   if (!state.persistTimer) {
                     state.persistTimer = setTimeout(function () {
                       state.persistTimer = null;
-                      if (state.msg) store.updateMsg(loverId, state.msg);
+                      if (state.msg) store.updateMsg(loverId, state.msg).catch(function (e) { console.error('[engine]', e); });
                     }, 600);
                   }
                 }
@@ -416,6 +429,19 @@
     jobs.push(engine.getSettings().then(function (st) {
       return store.trimMsgs(loverId, st.keepN || engine.DEFAULTS.keepN).catch(function () {});
     }));
+    // 承诺管线：本条回复里新出现的明确时间约定入库；已到期的顺手核销——
+    // 本轮提示词已把它们列为「到期必须兑现/交代」，这条回复就是对它们的处理
+    jobs.push(sync.promises(loverId).then(function (arr) {
+      const now = Date.now();
+      let chain = Promise.resolve();
+      arr.forEach(function (p, i) {
+        if (!p.done && p.due <= now) chain = chain.then(function () { return sync.settlePromise(loverId, i); });
+      });
+      return chain.then(function () {
+        const found = tp.extractPromises(msg.text, new Date());
+        if (found.length) return sync.addPromises(loverId, found);
+      });
+    }));
     return Promise.all(jobs);
   }
 
@@ -424,6 +450,7 @@
   function armFollowUp(loverId, persona, st) {
     clearTimeout(followTimers[loverId]);
     followTimers[loverId] = setTimeout(function () {
+      if (!sync.get(loverId)) return; // 角色已删除：追问别再把它的聊天记录复活
       store.msgs(loverId).then(function (arr) {
         const last = arr[arr.length - 1];
         if (!last || last.role !== 'you') return; // 用户已经回过话了
@@ -518,9 +545,9 @@
     if (st.persistTimer) { clearTimeout(st.persistTimer); st.persistTimer = null; }
     engine.hooks.onTyping(loverId, false);
     if (st.msg) {
-      st.msg.text = prompt.truncate(st.released + st.buffer, 400);
+      st.msg.text = prompt.truncate(st.released + st.buffer, st.maxChars || 400);
       st.msg.stopped = true;
-      store.updateMsg(loverId, st.msg);
+      store.updateMsg(loverId, st.msg).catch(function (e) { console.error('[engine]', e); });
       engine.hooks.onMsg(loverId, st.msg, 'update');
     }
     delete running[loverId];
@@ -560,7 +587,9 @@
           });
         });
       });
-      return Promise.all(jobs);
+      return Promise.all(jobs).catch(function (e) {
+        console.warn('[lifeTick]', e && e.message); // 定时器入口必须兜住：一次失败不能变成未处理的 rejection
+      });
     });
   };
 
