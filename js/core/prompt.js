@@ -158,7 +158,7 @@
     return tail.map(function (m) {
       let content = m.type === 'image' ? '［发了一张照片］' : (m.text || '');
       if (m.quote && m.quote.text) content = '（回复我上面那句「' + m.quote.text.slice(0, 60) + '」）' + content;
-      return { role: m.role === 'me' ? 'user' : 'assistant', content: content, ts: m.ts };
+      return { role: m.role === 'me' ? 'user' : 'assistant', content: content };
     });
   };
 
