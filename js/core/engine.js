@@ -31,6 +31,7 @@
     photos: true,         // 生活照开关
     keepN: 300,           // 每角色保留消息条数
     historyN: 60,         // 注入模型的历史条数
+    intimLib: true,       // 本地亲密素材库：亲密语境自动注入本地话术
   };
   let settingsCache = null;
   engine.getSettings = function () {
@@ -87,6 +88,48 @@
     });
   }
 
+  /* ---------- 本地亲密素材：语境检测 + 轮换抽取（不占 API，注入提示词做"语言血液"） ---------- */
+  const INTIM_HINTS = /(想你|想要|亲我|抱我|吻|脱|床上|今晚|过来|忍不住|硬了|湿了|进来|深一点|快一点|受不了|轻点|抱紧|别停|舒服|要你|睡你|上你|含住|顶|插|骑|坐上来|腿|腰|呼吸|喘|咬|舔|呻吟|高潮|射|里面|全部给我|趴好|自己动|求我|别躲|别跑|别忍|出声|叫出来)/;
+  const INTIM_STRONG = /(硬了|湿了|进来|深一点|受不了|别停|顶|插|骑|坐上来|呻吟|高潮|射|含住|里面|自己动|求我|叫出来|出声|别忍|趴好)/;
+
+  function detectHeat(loverId, lastUserText) {
+    return store.msgs(loverId).then(function (msgs) {
+      if (INTIM_STRONG.test(lastUserText || '')) return 2;
+      const recent = msgs.slice(-6);
+      let hits = 0;
+      for (const m of recent) {
+        const mm = (m.text || '').match(INTIM_HINTS);
+        if (mm) hits += mm.length;
+      }
+      return hits >= 5 ? 2 : hits >= 2 ? 1 : 0;
+    });
+  }
+
+  function pickIntimLines(loverId, persona, heat) {
+    const lib = (typeof window !== 'undefined' && window.SCHAT_INTIM) || (typeof globalThis !== 'undefined' && globalThis.SCHAT_INTIM) || null;
+    if (!lib || heat < 1) return '';
+    return store.msgs(loverId).then(function (msgs) {
+      // 轮换：按已用素材次数取模，避免重复
+      const used = msgs.filter(function (m) { return m.intim; }).length;
+      const pick = function (pool, n) {
+        const out = [];
+        for (let i = 0; i < n; i++) out.push(pool[(used * n + i * 7 + (used % 3)) % pool.length]);
+        return out;
+      };
+      const lines = [];
+      if (heat >= 2) {
+        if (lib.scenes.hard) lines.push.apply(lines, pick(lib.scenes.hard, 2));
+        if (lib.scenes.bed) lines.push(pick(lib.scenes.bed, 1)[0]);
+      } else if (heat === 1) {
+        if (lib.scenes.heat) lines.push.apply(lines, pick(lib.scenes.heat, 2));
+      }
+      const pool = (lib.per && lib.per[persona.name]) || (lib.per && lib.per['孙铎']) || [];
+      if (pool.length) lines.push(pick(pool, 1)[0]);
+      return '\n【本地素材参考】以下是几句贴合此刻气氛的话，可以照用、也可以按你的口吻重组，不要逐字背三句以上：\n' +
+        lines.map(function (s) { return '· ' + s; }).join('\n');
+    });
+  }
+
   /* 组装动态层 ctx */
   function buildCtx(loverId, extra) {
     return Promise.all([
@@ -108,6 +151,18 @@
     return engine.getSettings().then(function (st) {
       if (!st.apiKey) throw Object.assign(new Error('先在「设置」里填入 API Key'), { noKey: true });
       return buildCtx(loverId, opts.extra).then(function (ctx) {
+        // 本地亲密素材注入（设置可关；追问等程序化消息不注入）
+        if (st.intimLib !== false && !opts.noIntim) {
+          return detectHeat(loverId, null).then(function (heat) {
+            if (heat < 1) return null;
+            return pickIntimLines(loverId, persona, heat);
+          }).then(function (lines) {
+            if (lines) ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + lines;
+            return ctx;
+          });
+        }
+        return ctx;
+      }).then(function (ctx) {
         const system = prompt.buildSystem(persona, ctx);
         return store.msgs(loverId).then(function (history) {
           const messages = [{ role: 'system', content: system }].concat(prompt.buildHistory(history, st.historyN));
@@ -132,6 +187,7 @@
                 if (!state.msg) {
                   state.msg = { id: util.uid(), role: 'you', type: 'text', text: state.released, ts: Date.now() };
                   if (opts.follow) state.msg.follow = true;
+                  if (ctx.extra && ctx.extra.indexOf('【本地素材参考】') >= 0) state.msg.intim = true;
                   store.appendMsg(loverId, state.msg).then(function () {
                     engine.hooks.onMsg(loverId, state.msg, 'append');
                   });
