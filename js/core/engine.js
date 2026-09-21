@@ -90,7 +90,7 @@
 
   /* ---------- 本地亲密素材：语境检测 + 轮换抽取（不占 API，注入提示词做"语言血液"） ---------- */
   const INTIM_HINTS = /(想你|想要|亲我|抱我|吻|脱|床上|今晚|过来|忍不住|硬了|湿了|进来|深一点|快一点|受不了|轻点|抱紧|别停|舒服|要你|睡你|上你|含住|顶|插|骑|坐上来|腿|腰|呼吸|喘|咬|舔|呻吟|高潮|射|里面|全部给我|趴好|自己动|求我|别躲|别跑|别忍|出声|叫出来|操你|干死|鸡巴|骚逼|骚货|贱货|欠操|妈的|母狗|小婊子|爽死|插进|舔我|射了|叫老公|爬过来|夹得|吸得|好热|好紧|宝贝|宝宝)/;
-  const INTIM_STRONG = /(硬了|湿了|进来|深一点|受不了|别停|顶|插|骑|坐上来|呻吟|高潮|射|含住|里面|自己动|求我|叫出来|出声|别忍|趴好|操你|干死|鸡巴|骚逼|贱货|欠操|妈的|母狗|爽死|插进|舔我|射了|叫老公|爬过来)/;
+  const INTIM_STRONG = /(硬了|湿了|进来|深一点|受不了|别停|顶|插|骑|坐上来|呻吟|高潮|射|含住|里面|自己动|求我|叫出来|出声|别忍|趴好|操你|干死|鸡巴|骚逼|贱货|欠操|妈的|母狗|爽死|插进|舔我|射了|叫老公|爬过来|我要你|要你|放倒)/;
 
   /* ---------- 场景状态机：事件驱动触发（不是关键词驱动） ----------
    * normal(日常) → warm(暧昧,注入素材) → sex(做爱,本地直出)
@@ -98,6 +98,28 @@
    * 只有明确话题切换（明天/开会/吃饭等日常话题）才冷却。45分钟无互动自动重置。 */
   const AMBIENT_RE = /(嗯|啊|继续|快点|别停|再深|再快|爽|用力|抱|亲|要|给|干|弄|叫|舒服|对|就这样|别动|转过来|趴|上来|下去|射|出来|接着|轻点|慢点|重点|腿|腰|里面|顶|含|张|硬|湿|高潮|到了|再来|想|好舒服|好爽|好热|好紧|快点呀|快点啊|更深|别出来|快点射|操|痒|酥|麻)/;
   const TOPIC_RE = /(明天|开会|工作|上班|加班|吃饭|吃了吗|天气|回家|到家|睡觉|晚安|早安|忙|出差|项目|客户|合同|学校|上课|考试|家人|爸妈|朋友|逛街|买|电影|下班|老板|同事|房租|钱|账单|医院|挂号|写作业|论文|答辩|简历|面试)/;
+  /* 地点感知：提取最近对话里的场所，做爱场景结合空间编排 */
+  const PLACE_MAP = [
+    ['厕所', /(厕所|洗手间|卫生间|盥洗室)/],
+    ['车里', /(车里|车内|后座|停车场|副驾)/],
+    ['办公室', /(办公室|会议室|工位|办公桌)/],
+    ['酒店', /(酒店|宾馆|客房|房间)/],
+    ['床上', /(床上|床)/],
+    ['厨房', /(厨房|灶台)/],
+    ['浴室', /(浴室|淋浴|卫生间洗澡)/],
+    ['户外', /(天台|阳台|公园|草地|海边|江边|帐篷|野外|操场|楼顶)/]
+  ];
+
+  function sniffPlace(msgs) {
+    let place = null;
+    for (const m of msgs.slice(-8)) {
+      if (!m.text) continue;
+      for (const [name, re] of PLACE_MAP) {
+        if (re.test(m.text)) place = name; // 后出现的覆盖，取最新
+      }
+    }
+    return place;
+  }
 
   function updateScene(loverId) {
     return store.msgs(loverId).then(function (msgs) {
@@ -130,7 +152,9 @@
         }
 
         const heat = mode === 'sex' ? 2 : (mode === 'warm' ? 1 : 0);
-        return store.set('scene_' + loverId, { mode: mode, ts: nowTs }).then(function () {
+        // 地点任何模式都跟踪：先约地点再进状态的对话才能接上场景
+        const place = sniffPlace(msgs) || (sc && sc.place) || null;
+        return store.set('scene_' + loverId, { mode: mode, ts: nowTs, place: place }).then(function () {
           return heat;
         });
       });
@@ -180,14 +204,22 @@
       const longp = (lib.scenes && lib.scenes.long) || [];
       const pattern = used % 3;
       if (pattern === 1) return null; // 融合轮次 → 走 API + 强制本地句
-      if (pattern === 0 && short.length) {
-        return localReply(loverId, persona, short[(used * 5 + 3) % short.length]);
-      }
-      // pattern 2：中等句/长句交替（长短交错）
-      let pool = (used % 2 === 0) ? (dirty.length ? dirty : moan) : (longp.length ? longp : dirty);
-      if (!pool.length) pool = dirty.concat(moan);
-      if (!pool.length) return null; // 素材全空 → 回退 API，绝不能拿 undefined 去打字
-      return localReply(loverId, persona, pool[(used * 5 + 3) % pool.length]);
+      return store.get('scene_' + loverId, null).then(function (sc) {
+        const place = sc && sc.place;
+        const placePool = place && lib.scenes && lib.scenes.places && lib.scenes.places[place];
+        // 50% 用地点专属池（若有），让直出的话也带场景感
+        if (placePool && placePool.length && used % 2 === 0) {
+          return localReply(loverId, persona, placePool[(used * 5 + 3) % placePool.length]);
+        }
+        if (pattern === 0 && short.length) {
+          return localReply(loverId, persona, short[(used * 5 + 3) % short.length]);
+        }
+        // pattern 2：中等句/长句交替（长短交错）
+        let pool = (used % 2 === 0) ? (dirty.length ? dirty : moan) : (longp.length ? longp : dirty);
+        if (!pool.length) pool = dirty.concat(moan);
+        if (!pool.length) return null; // 素材全空 → 回退 API，绝不能拿 undefined 去打字
+        return localReply(loverId, persona, pool[(used * 5 + 3) % pool.length]);
+      });
     });
   }
 
@@ -216,8 +248,20 @@
       const line = pool[(used * 7 + 2) % pool.length];
       const pos = used % 2 === 0 ? '开头' : '结尾';
       let sceneNote = '';
-      if (heat >= 2) sceneNote = '现在你们已经在床上了，正在进行中：不许提工作、行程、巡馆、开会、吃饭这类无关的事，你写的内容只能是此刻床上的反应、动作和下流话。';
-      ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + '\n【必须原样包含】你这条回复必须以「' + line + '」' + pos + '，原样使用这句话，其余部分用你自己的话写，衔接自然。' + sceneNote;
+      if (heat >= 2) {
+        sceneNote = '现在你们已经在床上了，正在进行中：不许提工作、行程、巡馆、开会、吃饭这类无关的事，你写的内容只能是此刻床上的反应、动作和下流话。';
+        return store.get('scene_' + loverId, null).then(function (sc) {
+          const place = sc && sc.place;
+          if (place) {
+            sceneNote += '你们此刻就在「' + place + '」里：把这里的空间、物件、声音、姿势限制、随时被撞见的紧张感揉进你的动作和下流话里，写得具体一点、长一点。';
+          } else {
+            sceneNote += '这条可以写长一点（几十个字），把过程写出来，长短句错落。';
+          }
+          ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + '\n【必须原样包含】你这条回复必须以「' + line + '」' + pos + '，原样使用这句话，其余部分用你自己的话写，衔接自然。' + sceneNote;
+          return ctx;
+        });
+      }
+      ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + '\n【必须原样包含】你这条回复必须以「' + line + '」' + pos + '，原样使用这句话，其余部分用你自己的话写，衔接自然。';
       return ctx;
     });
   }
