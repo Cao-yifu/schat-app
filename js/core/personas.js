@@ -4,7 +4,7 @@
  */
 (function () {
   const G = typeof window !== "undefined" ? window : globalThis;
-  G.SCHAT_PERSONAS_VER = 16;
+  G.SCHAT_PERSONAS_VER = 17;
   G.SCHAT_PERSONAS = [
   {
     "id": "孙铎",
