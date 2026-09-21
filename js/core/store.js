@@ -37,6 +37,7 @@
 
   /* ---------------- localStorage 驱动（降级用） ---------------- */
   const LS_KEY = 'schat-v2-store';
+  store.LS_KEY = LS_KEY; // 供 UI 精确清理（GitHub Pages 源站共享，绝不能全站 clear）
   function lsRead() {
     try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; }
     catch (e) { return {}; }
@@ -84,33 +85,50 @@
   };
 
   /* 消息读写 */
+  /* 消息读写（按 key 串行化：并发读-改-写会丢消息，如照片入库与 trimMsgs 裁剪撞车） */
+  const chains = {};
+  function chain(key, fn) {
+    const prev = chains[key] || Promise.resolve();
+    const next = prev.then(fn);
+    chains[key] = next.catch(function () {}); // 链条不断：上一步失败不阻塞后续写
+    return next;
+  }
+
   store.msgs = function (loverId) {
     return store.get('msgs:' + loverId, []);
   };
   store.appendMsg = function (loverId, msg) {
-    return store.msgs(loverId).then(function (arr) {
-      arr.push(msg);
-      return store.set('msgs:' + loverId, arr).then(function () { return msg; });
+    return chain('msgs:' + loverId, function () {
+      return store.msgs(loverId).then(function (arr) {
+        arr.push(msg);
+        return store.set('msgs:' + loverId, arr).then(function () { return msg; });
+      });
     });
   };
   store.updateMsg = function (loverId, msg) {
-    return store.msgs(loverId).then(function (arr) {
-      for (let i = 0; i < arr.length; i++) {
-        if (arr[i].id === msg.id) { arr[i] = msg; break; }
-      }
-      return store.set('msgs:' + loverId, arr);
+    return chain('msgs:' + loverId, function () {
+      return store.msgs(loverId).then(function (arr) {
+        for (let i = 0; i < arr.length; i++) {
+          if (arr[i].id === msg.id) { arr[i] = msg; break; }
+        }
+        return store.set('msgs:' + loverId, arr);
+      });
     });
   };
   store.clearMsgs = function (loverId) {
-    return store.set('msgs:' + loverId, []);
+    return chain('msgs:' + loverId, function () {
+      return store.set('msgs:' + loverId, []);
+    });
   };
   /* 只保留最近 keepN 条（图片消息占空间） */
   store.trimMsgs = function (loverId, keepN) {
-    return store.msgs(loverId).then(function (arr) {
-      if (arr.length > keepN) {
-        arr = arr.slice(arr.length - keepN);
-        return store.set('msgs:' + loverId, arr);
-      }
+    return chain('msgs:' + loverId, function () {
+      return store.msgs(loverId).then(function (arr) {
+        if (arr.length > keepN) {
+          arr = arr.slice(arr.length - keepN);
+          return store.set('msgs:' + loverId, arr);
+        }
+      });
     });
   };
 
