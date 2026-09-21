@@ -247,7 +247,7 @@
         if (running[loverId]) return;
         enqueue(loverId, function () {
           const sec = Math.round((Date.now() - armedAt) / 1000);
-          const extra = '对方已经' + sec + '秒没回你上一条消息。你有点在意，用你的口吻补一条简短的追问，就一条，1-2句，催他回答你刚才问的事。绝不能自问自答，绝不能替你上一条消息做解释或续写，绝不能开新话题。';
+          const extra = '对方已经' + sec + '秒没回你上一条消息。现在只发一句最简短的追问，催他回话。用这类话术：「怎么不说话了」「怎么了？」「你在想什么？」「没想好吗？」「睡着了？」。也可以极轻地带上你刚才问的事（比如「那个问题很难回答吗」）。铁律：①绝不把你上一条的问题原样或换个说法再问一遍；②绝不自问自答、绝不替你上一条消息做解释或续写；③绝不开新话题；④就一句，越短越好。';
           return streamReply(loverId, persona, { extra: extra, follow: true })
             .catch(function (e) { console.warn('[追问失败]', e && e.message); });
         });
