@@ -187,13 +187,21 @@
   }
 
   let typingRow = null;
+  /* 只撤掉输入指示行和头部提示；不动发送按钮（流式进行中仍需显示"停止"） */
+  function hideTypingIndicator() {
+    if (typingRow) { typingRow.remove(); typingRow = null; }
+    $('chatSub').textContent = '';
+  }
   function showTyping(on) {
-    $('chatSub').textContent = on ? '对方正在输入…' : '';
-    const btn = $('sendBtn');
     if (on) {
+      hideTypingIndicator();
+      $('chatSub').textContent = '对方正在输入…';
+      const btn = $('sendBtn');
       btn.textContent = '停止';
       btn.classList.add('stop');
     } else {
+      hideTypingIndicator();
+      const btn = $('sendBtn');
       btn.textContent = '发送';
       btn.classList.remove('stop');
     }
@@ -207,9 +215,6 @@
         box.appendChild(typingRow);
         scrollBottom(true);
       }
-    } else if (typingRow) {
-      typingRow.remove();
-      typingRow = null;
     }
   }
 
@@ -287,7 +292,7 @@
     if (loverId === currentLover && lastRenderKey === loverId) {
       const persona = sync.get(loverId);
       if (document.getElementById('page-chat').classList.contains('active')) {
-        if (kind === 'append') appendMsgDom(persona, msg);
+        if (kind === 'append') { hideTypingIndicator(); appendMsgDom(persona, msg); }
         else updateMsgDom(persona, msg);
       }
       scrollBottom(false);
