@@ -4,7 +4,7 @@
  */
 (function () {
   const G = typeof window !== "undefined" ? window : globalThis;
-  G.SCHAT_PERSONAS_VER = 18;
+  G.SCHAT_PERSONAS_VER = 20;
   G.SCHAT_PERSONAS = [
   {
     "id": "孙铎",
@@ -290,6 +290,7 @@
       "出差取消：他本要飞外地，临时取消，第一个告诉了你。那天他约你见了面，但什么都没说破。"
     ],
     "photoKw": "hotel,travel",
+    "photoLocal": ["img/sunduo/01.jpg", "img/sunduo/02.jpg", "img/sunduo/03.jpg", "img/sunduo/04.jpg", "img/sunduo/05.jpg", "img/sunduo/06.jpg"],
     "isDefault": true
   },
   {
@@ -386,7 +387,8 @@
       }
     ],
     "prefs": [],
-    "photoKw": "hospital,doctor"
+    "photoKw": "hospital,doctor",
+    "photoLocal": ["img/xulang/01.jpg", "img/xulang/02.jpg", "img/xulang/03.jpg", "img/xulang/04.jpg", "img/xulang/05.jpg", "img/xulang/06.jpg", "img/xulang/07.jpg"]
   },
   {
     "id": "小泽",
@@ -482,7 +484,8 @@
       }
     ],
     "prefs": [],
-    "photoKw": "cat,pet"
+    "photoKw": "cat,pet",
+    "photoLocal": ["img/xiaoze/01.jpg", "img/xiaoze/02.jpg", "img/xiaoze/03.jpg", "img/xiaoze/04.jpg", "img/xiaoze/05.jpg", "img/xiaoze/06.jpg"]
   },
   {
     "id": "梁川",
@@ -588,7 +591,8 @@
       }
     ],
     "prefs": [],
-    "photoKw": "architecture,gym"
+    "photoKw": "architecture,gym",
+    "photoLocal": ["img/liangchuan/01.jpg", "img/liangchuan/02.jpg", "img/liangchuan/03.jpg", "img/liangchuan/04.jpg", "img/liangchuan/05.jpg", "img/liangchuan/06.jpg"]
   },
   {
     "id": "阿杰",
@@ -679,7 +683,8 @@
       }
     ],
     "prefs": [],
-    "photoKw": "motorcycle,garage"
+    "photoKw": "motorcycle,garage",
+    "photoLocal": ["img/ajie/01.jpg", "img/ajie/02.jpg", "img/ajie/03.jpg", "img/ajie/04.jpg", "img/ajie/05.jpg", "img/ajie/06.jpg"]
   },
   {
     "id": "齐越",
@@ -778,7 +783,8 @@
       }
     ],
     "prefs": [],
-    "photoKw": "cooking,home"
+    "photoKw": "cooking,home",
+    "photoLocal": ["img/qiyue/01.jpg", "img/qiyue/02.jpg", "img/qiyue/03.jpg", "img/qiyue/04.jpg", "img/qiyue/05.jpg", "img/qiyue/06.jpg"]
   },
   {
     "id": "乐恩",
@@ -884,7 +890,8 @@
       }
     ],
     "prefs": [],
-    "photoKw": "basketball,campus"
+    "photoKw": "basketball,campus",
+    "photoLocal": ["img/leen/01.jpg", "img/leen/02.jpg", "img/leen/03.jpg", "img/leen/04.jpg", "img/leen/05.jpg", "img/leen/06.jpg"]
   },
 
   {
