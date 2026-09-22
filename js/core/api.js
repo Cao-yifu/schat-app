@@ -107,6 +107,25 @@
     });
   };
 
+  /* TTS：OpenAI 兼容 /audio/speech（语音回复用）。失败返回 null，绝不抛错影响聊天 */
+  api.tts = function (opts) {
+    const base = api.normalizeBase(opts.baseURL);
+    if (!base || !opts.apiKey) return Promise.resolve(null);
+    return fetch(base + '/audio/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + opts.apiKey },
+      body: JSON.stringify({
+        model: opts.model,
+        input: String(opts.text || '').slice(0, 500),
+        voice: opts.voice,
+        response_format: 'mp3',
+      }),
+    }).then(function (r) {
+      if (!r.ok) throw new Error('tts ' + r.status);
+      return r.blob();
+    }).catch(function () { return null; });
+  };
+
   G.api = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();
