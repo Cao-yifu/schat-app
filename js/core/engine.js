@@ -36,6 +36,7 @@
     ttsBaseURL: 'https://api.siliconflow.cn/v1',
     ttsModel: 'FunAudioLLM/CosyVoice2-0.5B',
     ttsVoice: 'FunAudioLLM/CosyVoice2-0.5B:alex',
+    ttsInstruct: '用自然放松的日常口语语气说，不要播音腔，像发微信语音一样随意',
   };
   let settingsCache = null;
   engine.getSettings = function () {
@@ -464,7 +465,7 @@
 
   /* 语音回复：只有明确指令触发，一次触发最多 3 条，用尽即停（控制成本）。
    * 云端合成：需要语音 Key（OpenAI 兼容 /audio/speech，如 SiliconFlow CosyVoice2）。 */
-  const VOICE_REQ_RE = /(用语音|语音回|发语音|语音消息|语音条|来条语音|想听你的声音|听你声音|说话给我听|你的声音)/;
+  const VOICE_REQ_RE = /(用语音|语音回|发语音|发条语音|来条语音|语音一下|给我语音|用语音说|语音说|发句语音|语音消息|语音条|想听你的声音|听你声音|说话给我听|你的声音)/;
   function maybeVoice(loverId, persona, msg) {
     if (!msg || msg.type !== 'text' || !msg.text) return Promise.resolve();
     return Promise.all([
@@ -482,6 +483,7 @@
           apiKey: st.ttsKey,
           model: st.ttsModel || 'FunAudioLLM/CosyVoice2-0.5B',
           voice: (persona.ttsVoice || (pref && pref.name) || st.ttsVoice) || 'FunAudioLLM/CosyVoice2-0.5B:alex',
+          instruction: persona.ttsInstruct || st.ttsInstruct || '',
           text: msg.text,
         }).then(function (blob) {
           if (!blob) return;
@@ -657,7 +659,13 @@
       if (VOICE_REQ_RE.test(text)) {
         // 明确指令：TA 接下来最多用 3 条语音回复（用尽自动停，控制成本）
         store.set('voice_' + loverId, { left: 3 });
-        engine.hooks.onSys(loverId, '接下来 TA 会用语音回你（最多 3 条）');
+        engine.getSettings().then(function (st) {
+          if (!st.ttsKey) {
+            engine.hooks.onSys(loverId, '还没填语音 Key：去「设置 → 语音」填上硅基流动的 sk- 开头的 Key，才能发语音');
+          } else {
+            engine.hooks.onSys(loverId, '接下来 TA 会用语音回你（最多 3 条）');
+          }
+        });
       }
       return store.appendMsg(loverId, msg).then(function () {
         engine.hooks.onMsg(loverId, msg, 'append');
