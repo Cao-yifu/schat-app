@@ -401,20 +401,45 @@
   }
   function cancelFollowUp(loverId) { clearTimeout(followTimers[loverId]); }
 
+  /* 抽签袋：随机不重复抽取，抽完一轮再重新洗牌 */
+  function shuffled(n) {
+    const a = [];
+    for (let i = 0; i < n; i++) a.push(i);
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  function drawPhoto(loverId, poolKind, pool) {
+    const key = 'pbag_' + loverId + '_' + poolKind;
+    return store.get(key, null).then(function (bag) {
+      if (!bag || !bag.order || bag.order.length !== pool.length) {
+        bag = { order: shuffled(pool.length), pos: 0 };
+      }
+      if (bag.pos >= bag.order.length) {
+        bag.order = shuffled(pool.length);
+        bag.pos = 0;
+      }
+      const idx = bag.order[bag.pos];
+      bag.pos += 1;
+      return store.set(key, bag).then(function () { return pool[idx]; });
+    });
+  }
+
   /* 偶尔主动发一张自拍（嵌入式本地池，零网图） */
   function maybePhoto(loverId, persona) {
     return engine.getSettings().then(function (st) {
       if (!st.photos) return;
-      const lib = (typeof window !== 'undefined' && window.SCHAT && window.SCHAT.SCHAT_PHOTOS) || (typeof globalThis !== 'undefined' && globalThis.SCHAT && globalThis.SCHAT.SCHAT_PHOTOS) || null;
+      const lib = (typeof window !== 'undefined' && window.SCHAT && window.SCHAT.SCHAT_PHOTOS) || (typeof globalThis !== 'undefined' && globalThis.SCHAT && globalThis.SCHAT_PHOTOS) || null;
       const pool = lib && lib[persona.name] && lib[persona.name].selfie;
       if (!pool || !pool.length) return;
       return sync.lastPhotoAt(loverId).then(function (last) {
         if (Date.now() - last < 10 * 60 * 1000) return;
         if (Math.random() > 0.16) return;
-        return store.msgs(loverId).then(function (msgs) {
-          const n = msgs.filter(function (m) { return m.type === 'image'; }).length;
+        return drawPhoto(loverId, 'selfie', pool).then(function (src) {
           return sync.setLastPhotoAt(loverId, Date.now()).then(function () {
-            const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: pool[n % pool.length], ts: Date.now() };
+            const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: src, ts: Date.now() };
             return appendYou(loverId, msg);
           });
         });
@@ -433,18 +458,17 @@
       if (!st.photos) return;
       const lib = (typeof window !== 'undefined' && window.SCHAT && window.SCHAT.SCHAT_PHOTOS) || (typeof globalThis !== 'undefined' && globalThis.SCHAT && globalThis.SCHAT.SCHAT_PHOTOS) || null;
       if (!lib) return;
-      let pool = null;
-      if (PHOTO_INTIM_RE.test(text)) pool = (lib[persona.name] && lib[persona.name].priv) || [];
-      else if (PHOTO_LEG_RE.test(text)) pool = lib['_公共腿'] || [];
-      else if (PHOTO_HAND_RE.test(text)) pool = lib['_公共手'] || [];
+      let pool = null, poolKind = 'selfie';
+      if (PHOTO_INTIM_RE.test(text)) { pool = (lib[persona.name] && lib[persona.name].priv) || []; poolKind = 'priv'; }
+      else if (PHOTO_LEG_RE.test(text)) { pool = lib['_公共腿'] || []; poolKind = 'leg'; }
+      else if (PHOTO_HAND_RE.test(text)) { pool = lib['_公共手'] || []; poolKind = 'hand'; }
       else pool = (lib[persona.name] && lib[persona.name].selfie) || [];
       if (!pool.length) return;
       return sync.lastPhotoAt(loverId).then(function (last) {
         if (Date.now() - last < 20 * 1000) return; // 20 秒内刚发过，不再连发
-        return store.msgs(loverId).then(function (msgs) {
-          const n = msgs.filter(function (m) { return m.type === 'image'; }).length;
+        return drawPhoto(loverId, poolKind, pool).then(function (src) {
           return sync.setLastPhotoAt(loverId, Date.now()).then(function () {
-            const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: pool[n % pool.length], ts: Date.now() };
+            const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: src, ts: Date.now() };
             return appendYou(loverId, msg);
           });
         });
