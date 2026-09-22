@@ -31,7 +31,11 @@
     photos: true,         // 生活照开关
     keepN: 300,           // 每角色保留消息条数
     historyN: 60,         // 注入模型的历史条数
-    intimLib: true,       // 本地亲密素材库：亲密语境自动注入本地话术
+    intimLib: true,       // 亲密素材参考
+    ttsOn: true,          // 语音回复开关（仅明确指令触发）
+    ttsBaseURL: 'https://api.siliconflow.cn/v1',
+    ttsModel: 'FunAudioLLM/CosyVoice2-0.5B',
+    ttsVoice: 'FunAudioLLM/CosyVoice2-0.5B:james',
   };
   let settingsCache = null;
   engine.getSettings = function () {
@@ -53,6 +57,7 @@
     onMsg: function () {},        // (loverId, msg, kind: 'append'|'update')
     onTyping: function () {},     // (loverId, bool)
     onSys: function () {},        // (loverId, text) —— 轻提示（不入库）
+    onSpeak: function () {},      // (loverId, msg) —— 免费语音气泡就绪，UI 可自动播放
   };
   engine.activeLover = null;      // 当前打开的聊天（未读判断用）
 
@@ -415,6 +420,7 @@
   /* 回复完成后的收尾：追问定时、照片、裁剪 */
   function afterReply(loverId, persona, msg, opts) {
     const jobs = [];
+    jobs.push(maybeVoice(loverId, persona, msg));
     jobs.push(engine.getSettings().then(function (st) {
       if (st.followUp && !opts.noFollow && !opts.follow) armFollowUp(loverId, persona, st);
     }));
@@ -456,6 +462,48 @@
     }, (st.followUpSec || 30) * 1000);
   }
   function cancelFollowUp(loverId) { clearTimeout(followTimers[loverId]); }
+
+  /* 语音回复：只有明确指令触发，一次触发最多 3 条，用尽即停（控制成本）。
+   * 双模式：填了语音 Key 走神经 TTS（付费升级）；没填走手机系统语音（免费零成本）。 */
+  const VOICE_REQ_RE = /(用语音|语音回|发语音|语音消息|语音条|来条语音|想听你的声音|听你声音|说话给我听|你的声音)/;
+  function maybeVoice(loverId, persona, msg) {
+    if (!msg || msg.type !== 'text' || !msg.text) return Promise.resolve();
+    return Promise.all([
+      engine.getSettings(),
+      store.get('voice_' + loverId, null),
+    ]).then(function (r) {
+      const st = r[0], vs = r[1];
+      if (!vs || !vs.left || vs.left <= 0) return;
+      if (st.ttsOn === false) return;
+      return store.set('voice_' + loverId, { left: vs.left - 1 }).then(function () {
+        if (st.ttsKey && st.ttsBaseURL) {
+          // 神经音色（可选升级）：合成音频挂到气泡
+          return api.tts({
+            baseURL: st.ttsBaseURL,
+            apiKey: st.ttsKey,
+            model: st.ttsModel || 'FunAudioLLM/CosyVoice2-0.5B',
+            voice: (persona.ttsVoice || st.ttsVoice) || 'FunAudioLLM/CosyVoice2-0.5B:james',
+            text: msg.text,
+          }).then(function (blob) {
+            if (!blob) return;
+            msg.audioUrl = URL.createObjectURL(blob);
+            return store.updateMsg(loverId, msg).catch(function () {}).then(function () {
+              engine.hooks.onMsg(loverId, msg, 'update');
+            });
+          });
+        }
+        // 免费：手机系统语音，气泡加播放按钮 + 尝试自动播放
+        return store.get('voicePref_' + loverId, null).then(function (pref) {
+          msg.hasVoice = true;
+          msg.voicePref = pref || null;
+          return store.updateMsg(loverId, msg).catch(function () {}).then(function () {
+            engine.hooks.onMsg(loverId, msg, 'update');
+            if (engine.hooks.onSpeak) engine.hooks.onSpeak(loverId, msg);
+          });
+        });
+      });
+    }).catch(function () {});
+  }
 
   /* 抽签袋：随机不重复抽取，抽完一轮再重新洗牌 */
   /* 照片上下文过滤：时段/室内外/角度（与角色当前时空一致） */
@@ -617,6 +665,11 @@
       }
       const msg = { id: util.uid(), role: 'me', type: 'text', text: text, ts: Date.now(), quote: quote || null };
       const wantPhoto = PHOTO_REQ_RE.test(text) || PHOTO_INTIM_RE.test(text) || PHOTO_LEG_RE.test(text) || PHOTO_HAND_RE.test(text);
+      if (VOICE_REQ_RE.test(text)) {
+        // 明确指令：TA 接下来最多用 3 条语音回复（用尽自动停，控制成本）
+        store.set('voice_' + loverId, { left: 3 });
+        engine.hooks.onSys(loverId, '接下来 TA 会用语音回你（最多 3 条）');
+      }
       return store.appendMsg(loverId, msg).then(function () {
         engine.hooks.onMsg(loverId, msg, 'append');
         if (wantPhoto) {
