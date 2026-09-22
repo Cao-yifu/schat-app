@@ -310,8 +310,9 @@
       voice: voiceId,
       instruction: '用自然放松的日常口语语气说，不要播音腔，像发微信语音一样随意',
       text: text,
-    }).then(function (blob) {
-      if (!blob) { if (onErr) onErr('试听失败：接口或 Key 无效'); return; }
+    }).then(function (res) {
+      if (!res || res.err) { if (onErr) onErr('试听失败：' + (res && res.err ? res.err : '接口无响应')); return; }
+      const blob = res.blob;
       const url = URL.createObjectURL(blob);
       const a = new Audio(url);
       a.onended = function () { URL.revokeObjectURL(url); };
