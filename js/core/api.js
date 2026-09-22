@@ -134,6 +134,60 @@
     }).catch(function (e) { return { err: String(e && e.message || e).slice(0, 120) }; });
   };
 
+  /* 火山豆包语音 V3（语音技术产品线，浏览器直连跨域已实测放行）：
+   * X-Api-Key 鉴权；返回 NDJSON 流（每行 JSON，含 base64 音频段），组装成 mp3 Blob。
+   * voice 传原生 voice_type（如 zh_male_wenrouxuezhang_uranus_bigtts）。 */
+  api.ttsVolc = function (opts) {
+    if (!opts.apiKey) return Promise.resolve({ err: '没填火山语音 Key' });
+    return fetch('https://openspeech.bytedance.com/api/v3/tts/unidirectional', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': opts.apiKey,
+        'X-Api-Resource-Id': opts.resourceId || 'seed-tts-2.0',
+      },
+      body: JSON.stringify({
+        user: { uid: 'schat-web-app' },
+        req_params: {
+          text: String(opts.text || '').slice(0, 900),
+          speaker: opts.voice,
+          audio_params: { format: 'mp3', sample_rate: 24000 },
+        },
+      }),
+    }).then(function (r) {
+      if (!r.ok) {
+        return r.text().then(function (t) {
+          let d = '';
+          try { const j = JSON.parse(t); d = (j.header && j.header.message) || j.message || ''; } catch (e) { d = t.slice(0, 100); }
+          return { err: 'HTTP ' + r.status + ' ' + d };
+        });
+      }
+      return r.text().then(function (txt) {
+        const parts = [];
+        let errMsg = '';
+        txt.split(/\r?\n/).forEach(function (line) {
+          line = line.trim();
+          if (!line) return;
+          let j = null;
+          try { j = JSON.parse(line); } catch (e) { return; }
+          const h = j.header || {};
+          const code = (j.code != null ? j.code : h.code);
+          if (code === 20000000 || code === 20000001) return; // 合成结束标志
+          if (code != null && code !== 0) { errMsg = h.message || j.message || ('code ' + code); return; }
+          const data = (j.payload && j.payload.data) || j.data;
+          if (typeof data === 'string' && data) parts.push(data);
+        });
+        if (errMsg) return { err: '火山语音：' + errMsg };
+        if (!parts.length) return { err: '火山语音返回空音频' };
+        let bin;
+        try { bin = atob(parts.join('')); } catch (e) { return { err: '音频解码失败' }; }
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return { blob: new Blob([bytes], { type: 'audio/mpeg' }) };
+      });
+    }).catch(function (e) { return { err: String(e && e.message || e).slice(0, 120) }; });
+  };
+
   G.api = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();
