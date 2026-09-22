@@ -6,144 +6,156 @@
 <title>Schat</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Schat">
-<meta name="theme-color" content="#121715">
-<link rel="manifest" href="./manifest.webmanifest?v=60">
+<meta name="theme-color" content="#090D1B">
+<link rel="manifest" href="./manifest.webmanifest?v=61">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=60">
 <link rel="icon" type="image/png" href="./icons/icon-192.png?v=60">
-<link rel="stylesheet" href="./css/style.css?v=60">
+<link rel="stylesheet" href="./css/style.css?v=61">
 </head>
 <body>
+<main class="stage">
+<section class="phone">
+  <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
+  <header class="statusbar"><span id="statusClock">18:17</span><span class="status-icons">▮▮▮ ◉ ▰</span></header>
 
-<!-- 联系人列表页 -->
-<div id="page-home" class="page active">
-  <div class="hd">
-    <div class="ttl">Schat</div>
-    <div class="acts">
-      <div class="act" id="homeHelpBtn">?</div>
-      <div class="act" id="homeSetBtn">⚙</div>
+  <!-- 联系人列表页 -->
+  <div id="page-home" class="page active">
+    <div class="hd">
+      <div class="brand"><img src="./assets/schat-logo.svg" alt=""><span>Schat</span></div>
+      <div class="acts">
+        <button class="icon-btn" id="homeHelpBtn" aria-label="帮助">?</button>
+        <button class="icon-btn" id="homeSetBtn" aria-label="设置">⚙</button>
+      </div>
+    </div>
+    <div class="scroll">
+      <div class="privacy-strip"><span class="privacy-dot"></span><span>仅保存在本机 · 加密会话</span><span class="privacy-lock">LOCKED</span></div>
+      <label class="search"><span>⌕</span><input type="search" id="homeSearch" placeholder="搜索角色或对话"></label>
+      <div class="section-label"><span>最近对话</span></div>
+      <div class="list" id="homeList"></div>
+      <div class="verline" id="verLine"></div>
     </div>
   </div>
-  <div class="scroll"><div class="list" id="homeList"></div><div class="verline" id="verLine"></div></div>
-</div>
 
-<!-- 角色设定页 -->
-<div id="page-roles" class="page">
-  <div class="hd"><div class="ttl">角色</div><div class="acts"></div></div>
-  <div class="scroll"><div class="rolesgrid" id="rolesGrid"></div></div>
-</div>
+  <!-- 角色设定页 -->
+  <div id="page-roles" class="page">
+    <div class="hd"><div class="ttl">角色</div><div class="acts"></div></div>
+    <div class="scroll"><div class="rolesgrid" id="rolesGrid"></div></div>
+  </div>
 
-<!-- 朋友圈页 -->
-<div id="page-moments" class="page">
-  <div class="hd"><div class="ttl">朋友圈</div><div class="acts"><div class="act" id="momentsCamBtn">📷</div></div></div>
-  <div class="scroll"><div class="moments" id="momentsList"></div></div>
-</div>
+  <!-- 朋友圈页 -->
+  <div id="page-moments" class="page">
+    <div class="hd"><div class="ttl">朋友圈</div><div class="acts"><button class="icon-btn" id="momentsCamBtn" aria-label="发布">📷</button></div></div>
+    <div class="scroll"><div class="moments" id="momentsList"></div></div>
+  </div>
 
-<!-- 底部标签栏：聊天 / 角色 / 朋友圈 / 设置 -->
-<nav class="tabbar" id="tabbar">
-  <div class="tab on" data-tab="page-home"><span class="tic">💬</span><span class="tl">聊天</span><span class="badge" id="tabUnread"></span></div>
-  <div class="tab" data-tab="page-roles"><span class="tic">👤</span><span class="tl">角色</span></div>
-  <div class="tab" data-tab="page-moments"><span class="tic">◉</span><span class="tl">朋友圈</span></div>
-  <div class="tab" data-tab="page-set"><span class="tic">⚙</span><span class="tl">设置</span></div>
-</nav>
+  <!-- 底部标签栏：聊天 / 角色 / 朋友圈 / 我的 -->
+  <nav class="tabbar" id="tabbar">
+    <div class="tab on" data-tab="page-home"><span class="tic">◫</span><span class="tl">聊天</span><span class="badge" id="tabUnread"></span></div>
+    <div class="tab" data-tab="page-roles"><span class="tic">👤</span><span class="tl">角色</span></div>
+    <div class="tab" data-tab="page-moments"><span class="tic">◉</span><span class="tl">朋友圈</span></div>
+    <div class="tab" data-tab="page-set"><span class="tic"><img class="nav-ava-img" id="tabMyAva" alt="我"></span><span class="tl">我的</span></div>
+  </nav>
 
-<!-- 发朋友圈面板 -->
-<div class="mask" id="maskCompose"></div>
-<div class="sheet" id="sheetCompose">
-  <div class="ct">发一条朋友圈</div>
-  <div class="cb">
-    <textarea id="composeText" placeholder="这一刻的想法…" style="min-height:96px;width:100%;box-sizing:border-box;border:1px solid #d8d8d8;border-radius:10px;padding:10px;font-size:14px;resize:none"></textarea>
-    <div id="composeImgPrev" style="display:none;margin-top:8px"><img id="composeImg" alt="预览" style="width:100%;border-radius:10px"></div>
-    <div style="display:flex;gap:8px;margin-top:10px">
-      <button class="gbtn" id="composePhotoBtn">📷 添加照片</button>
-      <button class="gbtn" id="composePubBtn">发布</button>
+  <!-- 发朋友圈面板 -->
+  <div class="mask" id="maskCompose"></div>
+  <div class="sheet" id="sheetCompose">
+    <div class="ct">发一条朋友圈</div>
+    <div class="cb">
+      <textarea id="composeText" class="compose-input" placeholder="这一刻的想法…"></textarea>
+      <div id="composeImgPrev" class="compose-prev" style="display:none"><img id="composeImg" alt="预览"></div>
+      <div class="compose-btns">
+        <button class="gbtn" id="composePhotoBtn">📷 添加照片</button>
+        <button class="gbtn" id="composePubBtn">发布</button>
+      </div>
     </div>
   </div>
-</div>
-<input type="file" id="composeFile" accept="image/*" style="display:none">
+  <input type="file" id="composeFile" accept="image/*" style="display:none">
 
-<!-- 聊天页 -->
-<div id="page-chat" class="page">
-  <div class="hd">
-    <div class="back" id="chatBackBtn">‹</div>
-    <div class="ttl" style="text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="chatName">…</div>
-    <div class="sub" id="chatSub"></div>
-    <div class="acts"><div class="act" id="chatMenuBtn">⋯</div></div>
+  <!-- 聊天页 -->
+  <div id="page-chat" class="page">
+    <div class="hd chatbar">
+      <button class="icon-btn" id="chatBackBtn" aria-label="返回">‹</button>
+      <div class="peer"><span class="peer-ava" id="chatPeerAva"></span><span class="pc"><strong id="chatName">…</strong><small id="chatSub"></small></span></div>
+      <button class="icon-btn" id="chatMenuBtn" aria-label="更多">⋯</button>
+    </div>
+    <div class="encryption-note">🔒 此对话仅保存在你的设备上</div>
+    <div class="scroll chat-scroll" id="chatScroll"></div>
+    <div class="quotebar" id="quoteBar"><span class="qt" id="quoteText"></span><span class="qx" id="quoteClose">✕</span></div>
+    <div class="inbar">
+      <div class="hold"><textarea id="inp" rows="1" placeholder="写下消息……"></textarea></div>
+      <button class="send" id="sendBtn">发送</button>
+    </div>
   </div>
-  <div class="scroll chat-scroll" id="chatScroll"></div>
-  <div class="quotebar" id="quoteBar"><span class="qt" id="quoteText"></span><span class="qx" id="quoteClose">✕</span></div>
-  <div class="inbar">
-    <div class="hold"><textarea id="inp" rows="1" placeholder=""></textarea></div>
-    <button class="send" id="sendBtn">发送</button>
+
+  <!-- 设置页 -->
+  <div id="page-set" class="page">
+    <div class="hd">
+      <button class="icon-btn" id="setBackBtn" aria-label="返回">‹</button>
+      <div class="ttl">设置</div>
+      <div class="acts"></div>
+    </div>
+    <div class="scroll"><div style="padding:0 18px 32px" id="setBody"></div></div>
   </div>
-</div>
 
-<!-- 设置页 -->
-<div id="page-set" class="page">
-  <div class="hd">
-    <div class="back" id="setBackBtn">‹</div>
-    <div class="ttl">设置</div>
-    <div class="acts"></div>
+  <!-- 人设详情页 -->
+  <div id="page-profile" class="page">
+    <div class="hd">
+      <button class="icon-btn" id="profileBackBtn" aria-label="返回">‹</button>
+      <div class="ttl" id="profileName">…</div>
+      <div class="acts"></div>
+    </div>
+    <div class="scroll"><div style="padding:0 18px 32px" id="profileBody"></div></div>
   </div>
-  <div class="scroll"><div style="padding:0 16px 32px" id="setBody"></div></div>
-</div>
 
-<!-- 人设详情页 -->
-<div id="page-profile" class="page">
-  <div class="hd">
-    <div class="back" id="profileBackBtn">‹</div>
-    <div class="ttl" id="profileName">…</div>
-    <div class="acts"></div>
+  <!-- 帮助页 -->
+  <div id="page-help" class="page">
+    <div class="hd">
+      <button class="icon-btn" id="helpBackBtn" aria-label="返回">‹</button>
+      <div class="ttl">帮助</div>
+      <div class="acts"></div>
+    </div>
+    <div class="scroll"><div style="padding:0 18px 32px" id="helpBody"></div></div>
   </div>
-  <div class="scroll"><div style="padding:0 16px 32px" id="profileBody"></div></div>
-</div>
 
-<!-- 帮助页 -->
-<div id="page-help" class="page">
-  <div class="hd">
-    <div class="back" id="helpBackBtn">‹</div>
-    <div class="ttl">帮助</div>
-    <div class="acts"></div>
+  <!-- 气泡长按弹层 -->
+  <div class="mask" id="maskSheet"></div>
+  <div class="sheet" id="sheetMsg">
+    <div class="si" id="siQuote">↩ 引用回复</div>
+    <div class="si" id="siCopy">⧉ 复制</div>
+    <div class="si cancel">取消</div>
   </div>
-  <div class="scroll"><div style="padding:0 16px 32px" id="helpBody"></div></div>
-</div>
 
-<!-- 气泡长按弹层 -->
-<div class="mask" id="maskSheet"></div>
-<div class="sheet" id="sheetMsg">
-  <div class="si" id="siQuote">↩ 引用回复</div>
-  <div class="si" id="siCopy">⧉ 复制</div>
-  <div class="si cancel">取消</div>
-</div>
-
-<!-- 聊天 ⋯ 弹层 -->
-<div class="mask" id="maskChat"></div>
-<div class="sheet" id="sheetChat">
-  <div class="si" id="miProfile">📖 TA 的人设与记忆</div>
-  <div class="si" id="miClearChat">🗑 清空聊天记录</div>
-  <div class="si" id="miResetTime">⏱ 重置时间快进</div>
-  <div class="si" id="miDelete">🚫 删除这个角色</div>
-  <div class="si cancel">取消</div>
-</div>
-
-<!-- 首次引导 -->
-<div class="onboard" id="onboard">
-  <div class="bx">
-    <h3>开始之前，两件事</h3>
-    <p><b>1. 加到主屏幕</b>（iPhone）：</p>
-    <ol>
-      <li>Safari 打开本页</li>
-      <li>点底部「分享」按钮</li>
-      <li>选「添加到主屏幕」→ 完成</li>
-    </ol>
-    <p><b>2. 填 API Key</b>：右上角 ⚙ → AI 接口 → 填入你的 DeepSeek API Key，TA 才会真正开口。</p>
-    <p style="margin-top:8px">聊天中可用：<span style="color:var(--sage)">RS+内容</span> 永久改人设、<span style="color:var(--sage)">LS+内容</span> 临时调整、<span style="color:var(--sage)">【3小时后】</span> 快进时间；长按气泡可引用回复。</p>
-    <button class="gbtn" id="onboardOk">知道了</button>
+  <!-- 聊天 ⋯ 弹层 -->
+  <div class="mask" id="maskChat"></div>
+  <div class="sheet" id="sheetChat">
+    <div class="si" id="miProfile">📖 TA 的人设与记忆</div>
+    <div class="si" id="miClearChat">🗑 清空聊天记录</div>
+    <div class="si" id="miResetTime">⏱ 重置时间快进</div>
+    <div class="si red" id="miDelete">🚫 删除这个角色</div>
+    <div class="si cancel">取消</div>
   </div>
-</div>
 
-<div id="toast"></div>
+  <!-- 首次引导 -->
+  <div class="onboard" id="onboard">
+    <div class="bx">
+      <h3>开始之前，两件事</h3>
+      <p><b>1. 加到主屏幕</b>（iPhone）：</p>
+      <ol>
+        <li>Safari 打开本页</li>
+        <li>点底部「分享」按钮</li>
+        <li>选「添加到主屏幕」→ 完成</li>
+      </ol>
+      <p><b>2. 填 API Key</b>：右上角 ⚙ → AI 接口 → 填入你的 DeepSeek API Key，TA 才会真正开口。</p>
+      <p style="margin-top:8px">聊天中可用：<span style="color:var(--mint)">RS+内容</span> 永久改人设、<span style="color:var(--mint)">LS+内容</span> 临时调整、<span style="color:var(--mint)">【3小时后】</span> 快进时间；长按气泡可引用回复。</p>
+      <button class="gbtn" id="onboardOk">知道了</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+</section>
+</main>
 
 <script src="./js/core/personas.js?v=70"></script>
 <script src="./js/core/util.js?v=60"></script>
@@ -157,7 +169,7 @@
 <script src="./js/core/intim_corpus.js?v=60"></script>
 <script src="./js/core/engine.js?v=70"></script>
 <script src="./js/core/moments.js?v=70"></script>
-<script src="./js/ui/app.js?v=70"></script>
+<script src="./js/ui/app.js?v=71"></script>
 <script src="./js/main.js?v=60"></script>
 </body>
 </html>
