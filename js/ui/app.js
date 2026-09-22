@@ -293,23 +293,32 @@
   }
 
   /* ---------- 云端音色库（试听 = 直接调云接口播放） ---------- */
-  /* CosyVoice2-0.5B 实测可用男声（2026-09 用真实 Key 逐一验证；david 与 james 等已淘汰） */
+  /* 火山豆包语音大模型 2.0 音色（用户选定 8 款；ID 为原生 voice_type，
+   * 若试听报 Invalid voice，用音色库页面上的真实 ID 替换即可） */
   const CLOUD_VOICES = [
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:alex', label: 'Alex · 沉稳青年' },
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:benjamin', label: 'Benjamin · 温柔暖男' },
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:charles', label: 'Charles · 磁性低沉' },
+    { id: 'zh_male_wenrouxuezhang_uranus_bigtts', label: '徐朗 · 温柔学长2.0' },
+    { id: 'zh_male_wenrounanyou_uranus_bigtts', label: '越哥 · 温柔男友2.0' },
+    { id: 'zh_male_naiqixiaosheng_uranus_bigtts', label: '小泽 · 奶气小生2.0' },
+    { id: 'zh_male_lenglianxiongzhang_uranus_bigtts', label: '梁川 · 冷脸兄长2.0' },
+    { id: 'zh_male_jingyingqingnian_uranus_bigtts', label: '孙铎 · 精英青年2.0' },
+    { id: 'zh_male_mengdongqingnian_uranus_bigtts', label: '乐恩 · 懵懂青年2.0' },
+    { id: 'zh_male_qinqieqingnian_uranus_bigtts', label: 'Allen · 亲切青年2.0' },
+    { id: 'zh_male_guangzhoudege_uranus_bigtts', label: '阿杰 · 广州德哥' },
   ];
   const VOICE_SAMPLE = '是我。想我了吗？今晚想见你。';
-  function playCloud(text, voiceId, key, baseURL, model, onErr) {
+  function playCloud(text, voiceId, key, baseURL, model, onErr, provider) {
     if (!key) { if (onErr) onErr('先在上方填语音 Key 才能试听'); return; }
-    api.tts({
-      baseURL: baseURL,
-      apiKey: key,
-      model: model || 'FunAudioLLM/CosyVoice2-0.5B',
-      voice: voiceId,
-      instruction: '用自然放松的日常口语语气说，不要播音腔，像发微信语音一样随意',
-      text: text,
-    }).then(function (res) {
+    const synth = (provider === 'siliconflow')
+      ? api.tts({
+          baseURL: baseURL,
+          apiKey: key,
+          model: model || 'FunAudioLLM/CosyVoice2-0.5B',
+          voice: voiceId,
+          instruction: '用自然放松的日常口语语气说，不要播音腔，像发微信语音一样随意',
+          text: text,
+        })
+      : api.ttsVolc({ apiKey: key, voice: voiceId, text: text });
+    synth.then(function (res) {
       if (!res || res.err) { if (onErr) onErr('试听失败：' + (res && res.err ? res.err : '接口无响应')); return; }
       const blob = res.blob;
       const url = URL.createObjectURL(blob);
@@ -516,10 +525,14 @@
 
         '<div class="card"><div class="ct">语音（云端音色 · 明确指令触发 · 每次最多3条）</div><div class="cb">' +
         switchRow('ttsOn', '语音回复', '仅明确指令触发（用语音回我 / 想听你声音），一次最多 3 条，用尽自动停', st.ttsOn !== false) +
-        fld('语音 Key', 'setTtsKey', st.ttsKey, '硅基流动 siliconflow.cn 免费注册即送额度；CosyVoice2-0.5B 是免费模型（有频控），试听与语音≈0成本', 'password') +
-        fld('语音接口地址', 'setTtsBase', st.ttsBaseURL, 'OpenAI /audio/speech 兼容，默认 https://api.siliconflow.cn/v1') +
-        fld('语音模型', 'setTtsModel', st.ttsModel, '默认 FunAudioLLM/CosyVoice2-0.5B（中文超自然）') +
-        '<div style="font-size:12px;color:#8a8a8a;margin:4px 0">每个角色绑定一个男声，下方音色库点▶试听在线合成。</div>' +
+        '<div class="fld"><label>语音平台</label><select id="setTtsProvider">' +
+        '<option value="volcano"' + ((st.ttsProvider || 'volcano') === 'volcano' ? ' selected' : '') + '>火山豆包语音（推荐 · 超写实中文男声）</option>' +
+        '<option value="siliconflow"' + (st.ttsProvider === 'siliconflow' ? ' selected' : '') + '>硅基流动 CosyVoice2（免费）</option>' +
+        '</select><div class="val">火山语音用「语音技术」的 API Key（方舟 Key 不通用）；硅基流动用 sk- Key</div></div>' +
+        fld('语音 Key', 'setTtsKey', st.ttsKey, '火山控制台 → 语音技术 → API Key 管理（X-Api-Key）', 'password') +
+        '<div id="rowTtsBase">' + fld('语音接口地址', 'setTtsBase', st.ttsBaseURL, '仅硅基流动用；OpenAI /audio/speech 兼容') + '</div>' +
+        '<div id="rowTtsModel">' + fld('语音模型', 'setTtsModel', st.ttsModel, '仅硅基流动用') + '</div>' +
+        '<div style="font-size:12px;color:#8a8a8a;margin:4px 0">每个角色绑定一个音色，下方点▶试听在线合成。</div>' +
         voiceRowsHtml() +
         '</div></div>' +
 
@@ -566,12 +579,23 @@
       $('setTtsBase').addEventListener('change', function () { save({ ttsBaseURL: this.value.trim() }, '已保存'); });
       $('setTtsKey').addEventListener('change', function () { save({ ttsKey: this.value.trim() }, '已保存'); });
       $('setTtsModel').addEventListener('change', function () { save({ ttsModel: this.value.trim() }, '已保存'); });
+      const toggleTtsRows = function () {
+        const volc = ($('setTtsProvider').value || 'volcano') === 'volcano';
+        const b = $('rowTtsBase'); if (b) b.style.display = volc ? 'none' : '';
+        const m = $('rowTtsModel'); if (m) m.style.display = volc ? 'none' : '';
+      };
+      $('setTtsProvider').addEventListener('change', function () {
+        save({ ttsProvider: this.value }, '平台已切换');
+        toggleTtsRows();
+      });
+      toggleTtsRows();
 
-      /* 每角色音色绑定（云端男声库）+ 音色库试听 */
+      /* 每角色音色绑定（云端音色库）+ 音色库试听 */
       sync.list().forEach(function (p) {
         store.get('voicePref_' + p.id, null).then(function (pref) {
           const sel = $('vsel_' + p.id);
-          if (sel && pref && pref.name) sel.value = pref.name;
+          if (!sel) return;
+          sel.value = (pref && pref.name) || (p.ttsVoice || '');
         });
         $('vsel_' + p.id).addEventListener('change', function () {
           store.set('voicePref_' + p.id, { name: this.value }).then(function () { toast('已保存：' + p.name); });
@@ -582,8 +606,9 @@
           const key = $('setTtsKey').value.trim();
           const base = $('setTtsBase').value.trim();
           const model = $('setTtsModel').value.trim();
+          const provider = ($('setTtsProvider') && $('setTtsProvider').value) || 'volcano';
           toast('云端合成中…');
-          playCloud(VOICE_SAMPLE, v.id, key, base, model, function (e) { toast(e); });
+          playCloud(VOICE_SAMPLE, v.id, key, base, model, function (e) { toast(e); }, provider);
         });
       });
       $('setMax').addEventListener('change', function () { save({ maxChars: num(this.value, 400, 50, 400) }, '已保存'); });
