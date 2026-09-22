@@ -308,6 +308,7 @@
       apiKey: key,
       model: model || 'FunAudioLLM/CosyVoice2-0.5B',
       voice: voiceId,
+      instruction: '用自然放松的日常口语语气说，不要播音腔，像发微信语音一样随意',
       text: text,
     }).then(function (blob) {
       if (!blob) { if (onErr) onErr('试听失败：接口或 Key 无效'); return; }
