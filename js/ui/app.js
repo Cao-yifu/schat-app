@@ -293,18 +293,12 @@
   }
 
   /* ---------- 云端音色库（试听 = 直接调云接口播放） ---------- */
-  /* CosyVoice2 男声音色（SiliconFlow / OpenAI 兼容接口通用） */
+  /* CosyVoice2 官方 4 款男声（SiliconFlow 系统预置，实测存在） */
   const CLOUD_VOICES = [
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:james', label: 'James · 低沉磁性' },
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:alex', label: 'Alex · 沉稳青年' },
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:benjamin', label: 'Benjamin · 温柔暖男' },
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:charles', label: 'Charles · 成熟中年' },
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:david', label: 'David · 爽朗阳光' },
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:henry', label: 'Henry · 干净清亮' },
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:liam', label: 'Liam · 慵懒痞气' },
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:lucas', label: 'Lucas · 活泼少年' },
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:mike', label: 'Mike · 硬朗低音' },
-    { id: 'FunAudioLLM/CosyVoice2-0.5B:william', label: 'William · 斯文低沉' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:alex', label: 'Alex · 沉稳男声' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:benjamin', label: 'Benjamin · 低沉男声' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:charles', label: 'Charles · 磁性男声' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:david', label: 'David · 欢快男声' }
   ];
   const VOICE_SAMPLE = '是我。想我了吗？今晚想见你。';
   function playCloud(text, voiceId, key, baseURL, model, onErr) {
