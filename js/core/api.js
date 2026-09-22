@@ -107,11 +107,10 @@
     });
   };
 
-  /* TTS：OpenAI 兼容 /audio/speech（语音回复用）。失败返回 null，绝不抛错影响聊天 */
+  /* TTS：OpenAI 兼容 /audio/speech（语音回复用）。失败返回 {err: '原因'}，绝不抛错影响聊天 */
   api.tts = function (opts) {
     const base = api.normalizeBase(opts.baseURL);
-    if (!base || !opts.apiKey) return Promise.resolve(null);
-    /* 音色 ID 自带模型前缀（fishaudio/fish-speech-1.5:alex）——以音色为准，防设置里的旧模型名不匹配 */
+    if (!base || !opts.apiKey) return Promise.resolve({ err: '没填 Key' });
     const vm = (opts.voice && opts.voice.indexOf(':') >= 0) ? opts.voice.split(':')[0] : null;
     const model = vm || opts.model;
     return fetch(base + '/audio/speech', {
@@ -124,9 +123,15 @@
         response_format: 'mp3',
       }),
     }).then(function (r) {
-      if (!r.ok) throw new Error('tts ' + r.status);
-      return r.blob();
-    }).catch(function () { return null; });
+      if (!r.ok) {
+        return r.text().then(function (t) {
+          let detail = '';
+          try { detail = (JSON.parse(t).message || JSON.parse(t).error || ''); } catch (e) { detail = t.slice(0, 120); }
+          return { err: 'HTTP ' + r.status + ' ' + detail };
+        });
+      }
+      return r.blob().then(function (b) { return { blob: b }; });
+    }).catch(function (e) { return { err: String(e && e.message || e).slice(0, 120) }; });
   };
 
   G.api = api;
