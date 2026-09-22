@@ -9,10 +9,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Schat">
 <meta name="theme-color" content="#090D1B">
-<link rel="manifest" href="./manifest.webmanifest?v=61">
-<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=60">
-<link rel="icon" type="image/png" href="./icons/icon-192.png?v=60">
-<link rel="stylesheet" href="./css/style.css?v=72">
+<link rel="manifest" href="./manifest.webmanifest?v=73">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=73">
+<link rel="icon" type="image/png" href="./icons/icon-192.png?v=73">
+<link rel="stylesheet" href="./css/style.css?v=73">
 </head>
 <body>
 <main class="stage">
@@ -20,17 +20,13 @@
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
   <header class="statusbar"><span id="statusClock">18:17</span><span class="status-icons">▮▮▮ ◉ ▰</span></header>
 
-  <!-- 联系人列表页 -->
+  <!-- 联系人列表页（含我的群聊；设置/提示/帮助入口已挪到「我的」页） -->
   <div id="page-home" class="page active">
     <div class="hd">
       <div class="brand"><img src="./assets/schat-logo.svg" alt=""><span>Schat</span></div>
-      <div class="acts">
-        <button class="icon-btn" id="homeHelpBtn" aria-label="帮助">?</button>
-        <button class="icon-btn" id="homeSetBtn" aria-label="设置">⚙</button>
-      </div>
+      <div class="acts"></div>
     </div>
     <div class="scroll">
-      <div class="privacy-strip"><span class="privacy-dot"></span><span>仅保存在本机 · 加密会话</span><span class="privacy-lock">LOCKED</span></div>
       <label class="search"><span>⌕</span><input type="search" id="homeSearch" placeholder="搜索角色或对话"></label>
       <div class="section-label"><span>最近对话</span></div>
       <div class="list" id="homeList"></div>
@@ -44,7 +40,7 @@
     <div class="scroll">
       <div class="pwent">
         <button class="pwent-btn" id="pwListBtn"><span class="pwic">👁</span><span class="pwt"><b>偷窥 / 接管</b><small>挑两个角色，看 TA 们自己私聊</small></span><span class="pwarrow">›</span></button>
-        <button class="pwent-btn" id="pwGroupBtn"><span class="pwic">👥</span><span class="pwt"><b>建群</b><small>你和 TA 们一起群聊</small></span><span class="pwarrow">›</span></button>
+        <button class="pwent-btn" id="pwGroupBtn"><span class="pwic">👥</span><span class="pwt"><b>建群</b><small>你和 TA 们一起群聊（或纯围观幽灵群）</small></span><span class="pwarrow">›</span></button>
       </div>
       <div class="section-label"><span>全部角色</span></div>
       <div class="rolesgrid" id="rolesGrid"></div>
@@ -80,7 +76,7 @@
   </div>
   <input type="file" id="composeFile" accept="image/*" style="display:none">
 
-  <!-- 偷窥/接管：会话列表页 -->
+  <!-- 偷窥/接管：会话列表页（只留双人 + 幽灵群；有我的群聊在主列表） -->
   <div id="page-pwlist" class="page">
     <div class="hd">
       <button class="icon-btn" id="pwListBackBtn" aria-label="返回">‹</button>
@@ -88,7 +84,7 @@
       <div class="acts"><button class="icon-btn" id="pwNewBtn" aria-label="新建">＋</button></div>
     </div>
     <div class="scroll">
-      <div class="pwhint">挑两个角色，让 TA 们自己聊。你可以看戏、暂停、替其中一方说话——对方察觉不到。</div>
+      <div class="pwhint">挑两个角色，让 TA 们自己聊。你可以看戏、暂停、替其中一方说话——对方察觉不到。有你的群聊在首页聊天列表里。</div>
       <div class="list" id="pwList"></div>
       <div style="padding:8px 18px 20px">
         <button class="gbtn" id="pwNewBtn2">＋ 新建双人私聊</button>
@@ -130,6 +126,8 @@
     <div class="ct">拉角色建群（你也是群成员）</div>
     <div class="cb">
       <div class="pwpick" id="pwPickGroup"></div>
+      <label class="optrow"><div><div class="l">👻 纯围观幽灵群（我不进群）</div><div class="d">勾选后该群只在窥屏入口出现，不进首页列表</div></div>
+        <label class="switch"><input type="checkbox" id="pwGhostChk"><span class="sl"></span></label></label>
       <div class="subt">故事板（可留空 = 无剧本，性格自由发展）</div>
       <textarea id="pwStoryGroup" class="compose-input" placeholder="这次群聊的剧情走向…留空即实验模式。"></textarea>
       <button class="gbtn" id="pwGroupCreateBtn">建群开聊</button>
@@ -153,9 +151,51 @@
   <div class="mask" id="maskPwMenu"></div>
   <div class="sheet" id="sheetPwMenu">
     <div class="si" id="pwmStory">📝 编辑故事板</div>
+    <div class="si" id="pwmRename">✏️ 修改群名</div>
+    <div class="si" id="pwmMembers">👥 群公告与成员</div>
     <div class="si" id="pwmPause">⏸ 暂停 / 继续</div>
     <div class="si red" id="pwmDelete">🗑 删除这个聊天</div>
     <div class="si cancel" id="pwmCancel">取消</div>
+  </div>
+
+  <!-- 群公告与成员面板 -->
+  <div class="mask" id="maskPwMembers"></div>
+  <div class="sheet" id="sheetPwMembers">
+    <div class="ct" id="pwMembersTitle">群公告与成员</div>
+    <div class="cb">
+      <div class="subt">群公告</div>
+      <div class="anno" id="pwAnnounceText">（暂无公告）</div>
+      <div class="pwrow2">
+        <button class="gbtn" id="pwAnnEditBtn">编辑公告</button>
+      </div>
+      <div class="subt">成员</div>
+      <div class="memlist" id="pwMembersList"></div>
+      <button class="gbtn ghost" id="pwInviteBtn" style="border:1px solid rgba(141,232,211,.45);color:var(--mint);background:transparent">➕ 邀请新成员</button>
+      <button class="gbtn" id="pwMembersClose">完成</button>
+    </div>
+  </div>
+
+  <!-- 群公告编辑 -->
+  <div class="mask" id="maskPwAnn"></div>
+  <div class="sheet" id="sheetPwAnn">
+    <div class="ct">编辑群公告</div>
+    <div class="cb">
+      <textarea id="pwAnnInput" class="compose-input" placeholder="写点群公告…"></textarea>
+      <div class="pwrow2">
+        <button class="gbtn ghost" id="pwAnnClear">清空</button>
+        <button class="gbtn" id="pwAnnSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 邀请新成员面板 -->
+  <div class="mask" id="maskPwInvite"></div>
+  <div class="sheet" id="sheetPwInvite">
+    <div class="ct">邀请谁进群？</div>
+    <div class="cb">
+      <div class="pwpick" id="pwInvitePick"></div>
+      <button class="gbtn" id="pwInviteCancel">取消</button>
+    </div>
   </div>
 
   <!-- 聊天页 -->
@@ -165,16 +205,19 @@
       <div class="peer"><span class="peer-ava" id="chatPeerAva"></span><span class="pc"><strong id="chatName">…</strong><small id="chatSub"></small></span></div>
       <button class="icon-btn" id="chatMenuBtn" aria-label="更多">⋯</button>
     </div>
-    <div class="encryption-note">🔒 此对话仅保存在你的设备上</div>
     <div class="scroll chat-scroll" id="chatScroll"></div>
     <div class="quotebar" id="quoteBar"><span class="qt" id="quoteText"></span><span class="qx" id="quoteClose">✕</span></div>
+    <!-- emoji 面板 -->
+    <div class="emojibar" id="emojibar"></div>
     <div class="inbar">
+      <button class="icon-btn emoji-btn" id="emojiBtn" aria-label="表情">😊</button>
       <div class="hold"><textarea id="inp" rows="1" placeholder="写下消息……"></textarea></div>
-      <button class="send" id="sendBtn">发送</button>
+      <button class="plusbtn" id="sendBtn" aria-label="添加图片">⊕</button>
     </div>
+    <input type="file" id="chatFile" accept="image/*" style="display:none">
   </div>
 
-  <!-- 设置页 -->
+  <!-- 设置页（= 我的；设置/提示/帮助入口都在这） -->
   <div id="page-set" class="page">
     <div class="hd">
       <button class="icon-btn" id="setBackBtn" aria-label="返回">‹</button>
@@ -222,6 +265,14 @@
     <div class="si cancel">取消</div>
   </div>
 
+  <!-- 列表长按弹层（置顶/取消置顶） -->
+  <div class="mask" id="maskPin"></div>
+  <div class="sheet" id="sheetPin">
+    <div class="si" id="siPin">📌 置顶聊天</div>
+    <div class="si" id="siUnpin">📌 取消置顶</div>
+    <div class="si cancel" id="siPinCancel">取消</div>
+  </div>
+
   <!-- 首次引导 -->
   <div class="onboard" id="onboard">
     <div class="bx">
@@ -232,8 +283,8 @@
         <li>点底部「分享」按钮</li>
         <li>选「添加到主屏幕」→ 完成</li>
       </ol>
-      <p><b>2. 填 API Key</b>：右上角 ⚙ → AI 接口 → 填入你的 DeepSeek API Key，TA 才会真正开口。</p>
-      <p style="margin-top:8px">聊天中可用：<span style="color:var(--mint)">RS+内容</span> 永久改人设、<span style="color:var(--mint)">LS+内容</span> 临时调整、<span style="color:var(--mint)">【3小时后】</span> 快进时间；长按气泡可引用回复。</p>
+      <p><b>2. 填 API Key</b>：底部「我的」→ AI 接口 → 填入你的 DeepSeek API Key，TA 才会真正开口。</p>
+      <p style="margin-top:8px">聊天中可用：<span style="color:var(--mint)">RS+内容</span> 永久改人设、<span style="color:var(--mint)">LS+内容</span> 临时调整、<span style="color:var(--mint)">【3小时后】</span> 快进时间；长按气泡可引用回复；长按列表行可置顶。</p>
       <button class="gbtn" id="onboardOk">知道了</button>
     </div>
   </div>
@@ -242,20 +293,21 @@
 </section>
 </main>
 
-<script src="./js/core/personas.js?v=70"></script>
-<script src="./js/core/util.js?v=60"></script>
-<script src="./js/core/store.js?v=60"></script>
-<script src="./js/core/timeparse.js?v=60"></script>
-<script src="./js/core/prompt.js?v=60"></script>
-<script src="./js/core/api.js?v=70"></script>
-<script src="./js/core/sync.js?v=60"></script>
-<script src="./js/core/photo_pools.js?v=67"></script>
-<script src="./js/core/photos.js?v=60"></script>
-<script src="./js/core/intim_corpus.js?v=60"></script>
-<script src="./js/core/engine.js?v=70"></script>
-<script src="./js/core/moments.js?v=70"></script>
-<script src="./js/core/privatewatch.js?v=72"></script>
-<script src="./js/ui/app.js?v=72"></script>
-<script src="./js/main.js?v=60"></script>
+<script src="./js/core/personas.js?v=73"></script>
+<script src="./js/core/util.js?v=73"></script>
+<script src="./js/core/store.js?v=73"></script>
+<script src="./js/core/timeparse.js?v=73"></script>
+<script src="./js/core/prompt.js?v=73"></script>
+<script src="./js/core/api.js?v=73"></script>
+<script src="./js/core/sync.js?v=73"></script>
+<script src="./js/core/photo_pools.js?v=73"></script>
+<script src="./js/core/photos.js?v=73"></script>
+<script src="./js/core/intim_corpus.js?v=73"></script>
+<script src="./js/core/charmem.js?v=73"></script>
+<script src="./js/core/engine.js?v=73"></script>
+<script src="./js/core/moments.js?v=73"></script>
+<script src="./js/core/privatewatch.js?v=73"></script>
+<script src="./js/ui/app.js?v=73"></script>
+<script src="./js/main.js?v=73"></script>
 </body>
 </html>
