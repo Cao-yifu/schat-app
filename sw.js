@@ -1,4 +1,4 @@
-const CACHE_NAME = 'schat-v2-v2';
+const CACHE_NAME = 'schat-v2-v3';
 const PRECACHE = [
   './index.html',
   './manifest.webmanifest',
@@ -27,7 +27,7 @@ self.addEventListener('activate', function (event) {
 });
 
 function cached(request, isNavigation) {
-  return caches.match(request, { ignoreSearch: true }).then(function (response) {
+  return caches.match(request).then(function (response) {
     if (response) return response;
     if (isNavigation) return caches.match('./index.html');
     return undefined;
