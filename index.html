@@ -28,6 +28,41 @@
   <div class="scroll"><div class="list" id="homeList"></div><div class="verline" id="verLine"></div></div>
 </div>
 
+<!-- 角色设定页 -->
+<div id="page-roles" class="page">
+  <div class="hd"><div class="ttl">角色</div><div class="acts"></div></div>
+  <div class="scroll"><div class="rolesgrid" id="rolesGrid"></div></div>
+</div>
+
+<!-- 朋友圈页 -->
+<div id="page-moments" class="page">
+  <div class="hd"><div class="ttl">朋友圈</div><div class="acts"><div class="act" id="momentsCamBtn">📷</div></div></div>
+  <div class="scroll"><div class="moments" id="momentsList"></div></div>
+</div>
+
+<!-- 底部标签栏：聊天 / 角色 / 朋友圈 / 设置 -->
+<nav class="tabbar" id="tabbar">
+  <div class="tab on" data-tab="page-home"><span class="tic">💬</span><span class="tl">聊天</span><span class="badge" id="tabUnread"></span></div>
+  <div class="tab" data-tab="page-roles"><span class="tic">👤</span><span class="tl">角色</span></div>
+  <div class="tab" data-tab="page-moments"><span class="tic">◉</span><span class="tl">朋友圈</span></div>
+  <div class="tab" data-tab="page-set"><span class="tic">⚙</span><span class="tl">设置</span></div>
+</nav>
+
+<!-- 发朋友圈面板 -->
+<div class="mask" id="maskCompose"></div>
+<div class="sheet" id="sheetCompose">
+  <div class="ct">发一条朋友圈</div>
+  <div class="cb">
+    <textarea id="composeText" placeholder="这一刻的想法…" style="min-height:96px;width:100%;box-sizing:border-box;border:1px solid #d8d8d8;border-radius:10px;padding:10px;font-size:14px;resize:none"></textarea>
+    <div id="composeImgPrev" style="display:none;margin-top:8px"><img id="composeImg" alt="预览" style="width:100%;border-radius:10px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="gbtn" id="composePhotoBtn">📷 添加照片</button>
+      <button class="gbtn" id="composePubBtn">发布</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="composeFile" accept="image/*" style="display:none">
+
 <!-- 聊天页 -->
 <div id="page-chat" class="page">
   <div class="hd">
@@ -110,18 +145,19 @@
 
 <div id="toast"></div>
 
-<script src="./js/core/personas.js?v=69"></script>
+<script src="./js/core/personas.js?v=70"></script>
 <script src="./js/core/util.js?v=60"></script>
 <script src="./js/core/store.js?v=60"></script>
 <script src="./js/core/timeparse.js?v=60"></script>
 <script src="./js/core/prompt.js?v=60"></script>
-<script src="./js/core/api.js?v=69"></script>
+<script src="./js/core/api.js?v=70"></script>
 <script src="./js/core/sync.js?v=60"></script>
 <script src="./js/core/photo_pools.js?v=67"></script>
 <script src="./js/core/photos.js?v=60"></script>
 <script src="./js/core/intim_corpus.js?v=60"></script>
-<script src="./js/core/engine.js?v=69"></script>
-<script src="./js/ui/app.js?v=69"></script>
+<script src="./js/core/engine.js?v=70"></script>
+<script src="./js/core/moments.js?v=70"></script>
+<script src="./js/ui/app.js?v=70"></script>
 <script src="./js/main.js?v=60"></script>
 </body>
 </html>
