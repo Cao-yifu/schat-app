@@ -57,7 +57,6 @@
     onMsg: function () {},        // (loverId, msg, kind: 'append'|'update')
     onTyping: function () {},     // (loverId, bool)
     onSys: function () {},        // (loverId, text) —— 轻提示（不入库）
-    onSpeak: function () {},      // (loverId, msg) —— 免费语音气泡就绪，UI 可自动播放
   };
   engine.activeLover = null;      // 当前打开的聊天（未读判断用）
 
@@ -464,41 +463,31 @@
   function cancelFollowUp(loverId) { clearTimeout(followTimers[loverId]); }
 
   /* 语音回复：只有明确指令触发，一次触发最多 3 条，用尽即停（控制成本）。
-   * 双模式：填了语音 Key 走神经 TTS（付费升级）；没填走手机系统语音（免费零成本）。 */
+   * 云端合成：需要语音 Key（OpenAI 兼容 /audio/speech，如 SiliconFlow CosyVoice2）。 */
   const VOICE_REQ_RE = /(用语音|语音回|发语音|语音消息|语音条|来条语音|想听你的声音|听你声音|说话给我听|你的声音)/;
   function maybeVoice(loverId, persona, msg) {
     if (!msg || msg.type !== 'text' || !msg.text) return Promise.resolve();
     return Promise.all([
       engine.getSettings(),
       store.get('voice_' + loverId, null),
+      store.get('voicePref_' + loverId, null),
     ]).then(function (r) {
-      const st = r[0], vs = r[1];
+      const st = r[0], vs = r[1], pref = r[2];
       if (!vs || !vs.left || vs.left <= 0) return;
       if (st.ttsOn === false) return;
+      if (!st.ttsKey || !st.ttsBaseURL) return; // 没配 Key 不出语音
       return store.set('voice_' + loverId, { left: vs.left - 1 }).then(function () {
-        if (st.ttsKey && st.ttsBaseURL) {
-          // 神经音色（可选升级）：合成音频挂到气泡
-          return api.tts({
-            baseURL: st.ttsBaseURL,
-            apiKey: st.ttsKey,
-            model: st.ttsModel || 'FunAudioLLM/CosyVoice2-0.5B',
-            voice: (persona.ttsVoice || st.ttsVoice) || 'FunAudioLLM/CosyVoice2-0.5B:james',
-            text: msg.text,
-          }).then(function (blob) {
-            if (!blob) return;
-            msg.audioUrl = URL.createObjectURL(blob);
-            return store.updateMsg(loverId, msg).catch(function () {}).then(function () {
-              engine.hooks.onMsg(loverId, msg, 'update');
-            });
-          });
-        }
-        // 免费：手机系统语音，气泡加播放按钮 + 尝试自动播放
-        return store.get('voicePref_' + loverId, null).then(function (pref) {
-          msg.hasVoice = true;
-          msg.voicePref = pref || null;
+        return api.tts({
+          baseURL: st.ttsBaseURL,
+          apiKey: st.ttsKey,
+          model: st.ttsModel || 'FunAudioLLM/CosyVoice2-0.5B',
+          voice: (persona.ttsVoice || (pref && pref.name) || st.ttsVoice) || 'FunAudioLLM/CosyVoice2-0.5B:james',
+          text: msg.text,
+        }).then(function (blob) {
+          if (!blob) return;
+          msg.audioUrl = URL.createObjectURL(blob);
           return store.updateMsg(loverId, msg).catch(function () {}).then(function () {
             engine.hooks.onMsg(loverId, msg, 'update');
-            if (engine.hooks.onSpeak) engine.hooks.onSpeak(loverId, msg);
           });
         });
       });
