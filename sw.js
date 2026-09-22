@@ -1,4 +1,4 @@
-const CACHE_NAME = 'schat-v2-v4';
+const CACHE_NAME = 'schat-v2-v5';
 const PRECACHE = [
   './index.html',
   './manifest.webmanifest',
