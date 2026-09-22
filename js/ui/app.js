@@ -53,9 +53,10 @@
 
   function sheet(id, show) {
     $(id).classList.toggle('show', show);
-    // 遮罩配对：sheetMsg -> maskSheet, sheetChat -> maskChat
-    const mask = id === 'sheetMsg' ? $('maskSheet') : id === 'sheetChat' ? $('maskChat') : null;
-    if (mask) mask.classList.toggle('show', show);
+    // 遮罩配对：sheetMsg -> maskSheet, sheetChat -> maskChat, sheetPin -> maskPin
+    const maskMap = { sheetMsg: 'maskSheet', sheetChat: 'maskChat', sheetPin: 'maskPin' };
+    const mask = maskMap[id];
+    if (mask) $(mask).classList.toggle('show', show);
   }
 
   /* ---------- 联系人列表 ---------- */
@@ -69,19 +70,55 @@
     return '开始聊天吧';
   }
 
+  /* 长按/右键列表行 → 置顶/取消置顶（私聊行与群聊行通用） */
+  let pinSuppress = false; // 长按后吞掉本次 click
+  let pinTarget = null;    // { id }
+  function showPinSheet(target) {
+    pinTarget = target;
+    pinSuppress = true;
+    store.get('pinned', []).then(function (arr) {
+      $('siPin').style.display = arr.indexOf(target.id) >= 0 ? 'none' : '';
+      $('siUnpin').style.display = arr.indexOf(target.id) >= 0 ? '' : 'none';
+    });
+    sheet('sheetPin', true);
+  }
+  function bindRowPress(row, target) {
+    let pressTimer = null;
+    const cancel = function () { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+    row.addEventListener('touchstart', function () {
+      pressTimer = setTimeout(function () { showPinSheet(target); }, 480);
+    }, { passive: true });
+    row.addEventListener('touchend', function () {
+      cancel();
+      if (pinSuppress) setTimeout(function () { pinSuppress = false; }, 400);
+    });
+    row.addEventListener('touchmove', cancel, { passive: true });
+    row.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      cancel();
+      showPinSheet(target);
+    });
+  }
+
   function renderList() {
     const list = sync.list();
     const box = $('homeList');
     $('verLine').textContent = 'Schat v2 · 人设版本 v' + (window.SCHAT_PERSONAS_VER || '?') + ' · 数据只存在这台设备上';
     box.innerHTML = '';
+    /* 有我的群聊（kind=group 且 me!==false）进主列表；幽灵群留在窥屏入口 */
+    const PW2 = G.pw || G.privatewatch;
+    const groupsP = PW2 ? PW2.listMeta().then(function (metas) {
+      return metas.filter(function (m) { return m.kind === 'group' && m.me !== false; });
+    }).catch(function () { return []; }) : Promise.resolve([]);
     // 并发读取每个角色的最新消息，全部就绪后按列表顺序一次性插入（顺序稳定且首屏更快）
-    return Promise.all(list.map(function (item) {
+    return Promise.all([store.get('pinned', []), groupsP, Promise.all(list.map(function (item) {
       return Promise.all([store.msgs(item.id), sync.unread(item.id)]).then(function (r) {
         const msgs = r[0], unread = r[1] || 0;
         const last = msgs[msgs.length - 1];
         const row = document.createElement('div');
         row.className = 'row';
         row.setAttribute('data-name', item.name);
+        row.setAttribute('data-id', item.id);
         row.innerHTML =
           avatarHtml(item, 'avatar') +
           '<div class="mid"><div class="nm">' + esc(item.nickname || item.name) + '</div>' +
@@ -91,12 +128,64 @@
         dot.className = 'udot';
         dot.style.display = unread > 0 ? 'block' : 'none';
         row.querySelector('.avatar').appendChild(dot);
-        row.addEventListener('click', function () { openChat(item.id); });
+        bindRowPress(row, { id: item.id });
+        row.addEventListener('click', function () {
+          if (pinSuppress) { pinSuppress = false; return; }
+          openChat(item.id);
+        });
         return row;
       });
-    })).then(function (rows) {
-      for (const row of rows) box.appendChild(row);
-      applySearch();
+    }))]).then(function (r) {
+      const pinnedIds = r[0] || [];
+      const gmetas = r[1];
+      const loverRows = r[2];
+      const groupRowsP = PW2 ? Promise.all(gmetas.map(function (meta) {
+        return PW2.msgs(meta.id).then(function (msgs) {
+          let last = null;
+          for (let i = msgs.length - 1; i >= 0; i--) {
+            if (msgs[i].type === 'text') { last = msgs[i]; break; }
+          }
+          const row = document.createElement('div');
+          row.className = 'row';
+          row.setAttribute('data-name', meta.groupName || '群聊');
+          row.setAttribute('data-id', meta.id);
+          const avas = meta.members.slice(0, 3).map(function (id) {
+            const p = sync.get(id);
+            return p ? avatarHtml(p, 'avatar') : '<div class="avatar" style="background:#44506e">?</div>';
+          }).join('');
+          const pv = last ? PW2.dispName(meta, last.role) + '：' + (last.text || '').slice(0, 30) : '（还没有消息）';
+          row.innerHTML = '<div class="gavastack">' + avas + '</div>' +
+            '<div class="mid"><div class="nm">' + esc(meta.groupName || '群聊') + '<span class="gtag">群聊</span></div>' +
+            '<div class="pv">' + esc(pv) + '</div></div>' +
+            '<div class="tm">' + esc(util.listTime(meta.lastGen || meta.createdAt)) + '</div>';
+          bindRowPress(row, { id: meta.id });
+          row.addEventListener('click', function () {
+            if (pinSuppress) { pinSuppress = false; return; }
+            openPeek(meta.id, 'home');
+          });
+          return row;
+        });
+      })) : Promise.resolve([]);
+      return groupRowsP.then(function (groupRows) {
+        const all = loverRows.concat(groupRows);
+        const pinnedRows = [];
+        const rest = [];
+        all.forEach(function (row) {
+          const id = row.getAttribute('data-id');
+          if (pinnedIds.indexOf(id) >= 0) {
+            row.classList.add('pinned');
+            const mark = document.createElement('span');
+            mark.className = 'pinmark';
+            mark.textContent = '📌 ';
+            const nm = row.querySelector('.nm');
+            nm.insertBefore(mark, nm.firstChild);
+            pinnedRows.push(row);
+          } else rest.push(row);
+        });
+        pinnedRows.forEach(function (r2) { box.appendChild(r2); });
+        rest.forEach(function (r2) { box.appendChild(r2); });
+        applySearch();
+      });
     });
   }
   /* 流式打字期间每 100ms 一次 onMsg，列表重渲染必须防抖，否则每 tick 全员读库 */
@@ -228,12 +317,12 @@
       hideTypingIndicator();
       $('chatSub').textContent = '对方正在输入…';
       const btn = $('sendBtn');
-      btn.textContent = '停止';
+      btn.textContent = '⏹';
       btn.classList.add('stop');
     } else {
       hideTypingIndicator();
       const btn = $('sendBtn');
-      btn.textContent = '发送';
+      btn.textContent = '⊕';
       btn.classList.remove('stop');
     }
     const box = $('chatScroll');
@@ -354,7 +443,7 @@
       const c = document.createElement('div');
       c.className = 'rolecard';
       c.innerHTML = avatarHtml(p, 'avatar') + '<div class="nm">' + esc(p.nickname || p.name) + '</div>';
-      c.addEventListener('click', function () { openProfile(p.id); });
+      c.addEventListener('click', function () { openProfileFrom('roles', p.id); });
       box.appendChild(c);
     });
   }
@@ -372,6 +461,12 @@
       '<div class="mnm">' + esc(isMe ? '我' : (p ? (p.nickname || p.name) : 'TA')) + '</div>' +
       '<div class="mtime">' + esc(M.fmtAgo(m.t)) + '</div>';
     post.appendChild(hd);
+    /* 点击头像 → 角色卡（任务8） */
+    if (!isMe && p) {
+      const mava = hd.querySelector('.mava');
+      mava.classList.add('tappable');
+      mava.addEventListener('click', function () { openProfileFrom('moments', p.id); });
+    }
     if (m.text) {
       const tx = document.createElement('div');
       tx.className = 'mtxt';
@@ -419,7 +514,16 @@
       (m.comments || []).forEach(function (c) {
         const cl = document.createElement('div');
         cl.className = 'cmt';
-        cl.innerHTML = '<b>' + esc(c.who) + '</b>' + esc(c.text);
+        const b = document.createElement('b');
+        b.textContent = c.who;
+        /* 点击评论者名字 → 该角色卡（任务8） */
+        const cp = personas.find(function (x) { return (x.nickname || x.name) === c.who; });
+        if (cp) {
+          b.classList.add('tappable');
+          b.addEventListener('click', function () { openProfileFrom('moments', cp.id); });
+        }
+        cl.appendChild(b);
+        cl.appendChild(document.createTextNode(c.text));
         foot.appendChild(cl);
       });
       post.appendChild(foot);
@@ -448,7 +552,7 @@
     if (!isMe && p) {
       const nm = post.querySelector('.mnm');
       nm.classList.add('tappable');
-      nm.addEventListener('click', function () { openProfile(p.id); });
+      nm.addEventListener('click', function () { openProfileFrom('moments', p.id); });
     }
     return post;
   }
@@ -534,16 +638,23 @@
   function peekBubble(meta, msg) {
     const d = new Date(msg.ts || Date.now());
     const hm = util.p2(d.getHours()) + ':' + util.p2(d.getMinutes());
+    if (msg.role === 'sys') {
+      return '<div class="sysline">' + esc(msg.text) + '</div>';
+    }
+    const body = msg.type === 'image'
+      ? (msg.src && msg.src.indexOf('data:image/') === 0 ? '<img class="ph" src="' + msg.src + '" alt="照片">' : esc('[图片]'))
+      : esc(msg.text || '');
     if (msg.role === 'user') {
+      const nm = (meta.gnicks && meta.gnicks.user) ? '<div class="nm">' + esc(meta.gnicks.user) + '</div>' : '';
       return '<div class="msg me" data-id="' + msg.id + '"><div class="ava"><img src="' + MY_AVATAR + '" alt=""></div>' +
-        '<div class="wrap"><div class="bub">' + esc(msg.text || '') + '</div><time>' + hm + '</time></div></div>';
+        '<div class="wrap">' + nm + '<div class="bub">' + body + '</div><time>' + hm + '</time></div></div>';
     }
     const p = sync.get(msg.role);
     const me = meta.kind === 'dual' && meta.members.indexOf(msg.role) === 1; // 双人：第二位靠右
-    const nm = meta.kind === 'group' ? '<div class="nm">' + esc(meta.names[msg.role] || msg.role) + '</div>' : '';
+    const nm = meta.kind === 'group' ? '<div class="nm">' + esc(PW.dispName(meta, msg.role)) + '</div>' : '';
     const ava = p ? avatarHtml(p, 'ava') : '<div class="ava" style="background:#44506e">?</div>';
     return '<div class="msg ' + (me ? 'me' : 'you') + '" data-id="' + msg.id + '">' + ava +
-      '<div class="wrap">' + nm + '<div class="bub">' + esc(msg.text || '') + '</div><time>' + hm + '</time></div></div>';
+      '<div class="wrap">' + nm + '<div class="bub">' + body + '</div><time>' + hm + '</time></div></div>';
   }
 
   function renderPeekMsgs(meta) {
@@ -610,7 +721,7 @@
 
   function renderPeekTitle(meta) {
     $('peekTitle').textContent = meta.kind === 'group'
-      ? '群聊（' + (meta.members.length + 1) + '人）'
+      ? (meta.groupName || '群聊')
       : (meta.names[meta.members[0]] || meta.members[0]) + ' · ' + (meta.names[meta.members[1]] || meta.members[1]);
     const box = $('peekPeerAva');
     box.innerHTML = '';
@@ -626,7 +737,7 @@
       el.querySelector('.avatar').style.border = '2px solid #202941';
       box.appendChild(el);
     });
-    $('peekSub').innerHTML = '<b></b>在线';
+    $('peekSub').innerHTML = '<b></b>' + (meta.kind === 'group' ? (meta.members.length + 1) + ' 人' : '在线');
   }
 
   function renderPeekBar(meta) {
@@ -649,7 +760,7 @@
       });
     }
     if (meta.paused) html += '<span class="pwbtn note">已暂停：不会产生新消息，点「继续」恢复。</span>';
-    else if (meta.genOff === 'nokey') html += '<span class="pwbtn note">还没填 API Key：去「设置 → AI 接口」填好后再继续。</span>';
+    else if (meta.genOff === 'nokey') html += '<span class="pwbtn note">未配置 API Key，请在设置页填写后重试</span>';
     else if (meta.genOff === 'err') html += '<span class="pwbtn note">上次生成失败，点「暂停→继续」重试。</span>';
     else if (meta.takenBy) html += '<span class="pwbtn note">你正替「' + esc(meta.names[meta.takenBy] || meta.takenBy) + '」说话，对方察觉不到。</span>';
     else if (meta.kind === 'dual') html += '<span class="pwbtn note">旁观中 · ' + esc(peekStateLabel(meta)) + '：接管一方即可替 TA 发消息。</span>';
@@ -691,7 +802,9 @@
     renderPeekMsgs(meta);
   }
 
-  function openPeek(sid) {
+  let peekOrigin = 'pwlist'; // 'pwlist' | 'home'（从首页群聊行进入）
+  function openPeek(sid, origin) {
+    peekOrigin = origin || 'pwlist';
     return PW.meta(sid).then(function (meta) {
       if (!meta) { toast('会话不存在'); return; }
       peekSid = sid;
@@ -710,15 +823,22 @@
     peekSid = null;
     peekMeta = null;
     hidePeekTyping();
-    showPage('page-pwlist');
-    renderPwList();
+    if (peekOrigin === 'home') {
+      showPage('page-home');
+      renderList();
+    } else {
+      showPage('page-pwlist');
+      renderPwList();
+    }
   }
 
   function renderPwList() {
     const box = $('pwList');
     if (!box) return Promise.resolve();
     return PW.listMeta().then(function (metas) {
-      return Promise.all(metas.map(function (meta) {
+      /* 窥屏入口只留：双人私聊 + 没有我的群聊（幽灵群）；有我的群聊在首页列表 */
+      const visible = metas.filter(function (m) { return m.kind === 'dual' || m.me === false; });
+      return Promise.all(visible.map(function (meta) {
         return PW.msgs(meta.id).then(function (msgs) { return { meta: meta, msgs: msgs }; });
       })).then(function (rows) {
         box.innerHTML = '';
@@ -736,16 +856,17 @@
           for (let i = r.msgs.length - 1; i >= 0; i--) {
             if (r.msgs[i].type === 'text') { last = r.msgs[i]; break; }
           }
-          const pv = last ? (last.role === 'user' ? '你：' : (meta.names[last.role] || last.role) + '：') + (last.text || '') : '';
+          const nm = meta.kind === 'group' ? (meta.groupName || '群聊') : (meta.members.map(function (m) { return meta.names[m] || m; }).join(' · '));
+          const pv = last ? PW.dispName(meta, last.role) + '：' + (last.text || '') : '';
           const st = meta.paused ? '已暂停' : (meta.pacing === 'realtime' ? '实时模式' : (meta.pacing === 'slow' ? '慢聊模式' : '自动节奏'));
           const row = document.createElement('div');
           row.className = 'pwsess';
           row.innerHTML = '<div class="dualava">' + avas.join('') + '</div>' +
-            '<div class="mid"><div class="nm">' + esc(meta.members.map(function (m) { return meta.names[m] || m; }).join(' · ')) + '</div>' +
+            '<div class="mid"><div class="nm">' + esc(nm) + '</div>' +
             '<div class="pv">' + esc(pv.slice(0, 30) || '（还没有消息）') + '</div>' +
-            '<div class="st">' + st + (meta.kind === 'group' ? ' · 群聊' : '') + '</div></div>' +
+            '<div class="st">' + st + (meta.kind === 'group' ? ' · 幽灵群' : '') + '</div></div>' +
             '<div class="tm">' + esc(util.listTime(meta.lastGen || meta.createdAt)) + '</div>';
-          row.addEventListener('click', function () { openPeek(meta.id); });
+          row.addEventListener('click', function () { openPeek(meta.id, 'pwlist'); });
           box.appendChild(row);
         });
       });
@@ -791,6 +912,75 @@
     pwSheet('PwGroup', true);
   }
 
+  /* 群公告与成员面板（任务6/10） */
+  function renderPwMembers(meta) {
+    if (!meta || meta.kind !== 'group') return;
+    $('pwMembersTitle').textContent = (meta.groupName || '群聊') + ' · 成员管理';
+    $('pwAnnounceText').textContent = meta.announcement || '（暂无公告）';
+    const box = $('pwMembersList');
+    box.innerHTML = '';
+    const mkRow = function (id, name, sub, canKick) {
+      const p = sync.get(id);
+      const row = document.createElement('div');
+      row.className = 'memrow';
+      row.innerHTML = (p ? avatarHtml(p, 'avatar') : '<div class="avatar" style="background:#44506e">?</div>') +
+        '<div class="mid"><div class="nm">' + esc(name) + '</div><div class="sub">' + esc(sub || '') + '</div></div>';
+      const acts = document.createElement('div');
+      acts.className = 'memacts';
+      const nickBtn = document.createElement('button');
+      nickBtn.className = 'pwbtn';
+      nickBtn.textContent = '设昵称';
+      nickBtn.addEventListener('click', function () {
+        const cur = (meta.gnicks && meta.gnicks[id]) || '';
+        const v = prompt('给「' + name + '」设置群内昵称（留空 = 用本名）：', cur);
+        if (v === null) return;
+        PW.setGnick(meta.id, id, v).then(function () {
+          toast(v.trim() ? '昵称已设' : '已恢复本名');
+          renderPwMembers(meta);
+        });
+      });
+      acts.appendChild(nickBtn);
+      if (canKick) {
+        const kickBtn = document.createElement('button');
+        kickBtn.className = 'pwbtn warn';
+        kickBtn.textContent = '移除';
+        kickBtn.addEventListener('click', function () {
+          if (!confirm('把「' + name + '」移出群聊？TA 会记住这件事。')) return;
+          PW.kickMember(meta.id, id).then(function () {
+            toast('已移出群聊');
+            renderPwMembers(meta);
+          });
+        });
+        acts.appendChild(kickBtn);
+      }
+      row.appendChild(acts);
+      box.appendChild(row);
+    };
+    mkRow('user', (meta.gnicks && meta.gnicks.user) || '我', '群主', false);
+    meta.members.forEach(function (id) {
+      mkRow(id, PW.dispName(meta, id), '', true);
+    });
+    /* 邀请面板候选项（不在群里的角色） */
+    const pick = $('pwInvitePick');
+    if (pick) {
+      pick.innerHTML = '';
+      sync.list().forEach(function (p) {
+        if (meta.members.indexOf(p.id) >= 0) return;
+        const c = document.createElement('div');
+        c.className = 'rolecard';
+        c.innerHTML = avatarHtml(p, 'avatar') + '<div class="nm">' + esc(p.nickname || p.name) + '</div>';
+        c.addEventListener('click', function () {
+          PW.inviteMember(meta.id, p.id).then(function () {
+            toast('已邀请「' + (p.nickname || p.name) + '」加入');
+            pwSheet('PwInvite', false);
+            renderPwMembers(meta);
+          });
+        });
+        pick.appendChild(c);
+      });
+    }
+  }
+
   function openPwStory() {
     if (!peekMeta) return;
     $('pwStoryEdit').value = peekMeta.storyboard || '';
@@ -824,16 +1014,31 @@
     });
     $('pwGroupCreateBtn').addEventListener('click', function () {
       if (!pwPickGroupState || pwPickGroupState.sel.length < 2) { toast('至少拉两个角色'); return; }
-      PW.create({ kind: 'group', members: pwPickGroupState.sel, storyboard: $('pwStoryGroup').value }).then(function (meta) {
+      const ghost = !!($('pwGhostChk') && $('pwGhostChk').checked);
+      PW.create({ kind: 'group', members: pwPickGroupState.sel, storyboard: $('pwStoryGroup').value, me: !ghost }).then(function (meta) {
         pwSheet('PwGroup', false);
-        showPage('page-pwlist');
-        renderPwList();
-        openPeek(meta.id);
+        if (ghost) {
+          /* 幽灵群：纯观察，走窥屏入口 */
+          showPage('page-pwlist');
+          renderPwList();
+          openPeek(meta.id, 'pwlist');
+        } else {
+          /* 有我的群聊：进首页主列表 */
+          showPage('page-home');
+          renderList();
+          toast('群聊已创建：在首页聊天列表里');
+          openPeek(meta.id, 'home');
+        }
       });
     });
     /* 窥屏页 */
     $('peekBackBtn').addEventListener('click', closePeek);
-    $('peekMenuBtn').addEventListener('click', function () { pwSheet('PwMenu', true); });
+    $('peekMenuBtn').addEventListener('click', function () {
+      const isGroup = peekMeta && peekMeta.kind === 'group';
+      $('pwmRename').style.display = isGroup ? '' : 'none';
+      $('pwmMembers').style.display = isGroup ? '' : 'none';
+      pwSheet('PwMenu', true);
+    });
     $('maskPwMenu').addEventListener('click', function () { pwSheet('PwMenu', false); });
     $('pwmCancel').addEventListener('click', function () { pwSheet('PwMenu', false); });
     $('pwmStory').addEventListener('click', openPwStory);
@@ -849,6 +1054,47 @@
       PW.remove(sid).then(function () {
         closePeek();
         toast('已删除');
+      });
+    });
+    /* 修改群名（任务6） */
+    $('pwmRename').addEventListener('click', function () {
+      pwSheet('PwMenu', false);
+      if (!peekMeta || peekMeta.kind !== 'group') return;
+      const v = prompt('修改群名：', peekMeta.groupName || '');
+      if (v === null) return;
+      PW.setGroupName(peekMeta.id, v).then(function () {
+        toast('群名已改');
+        renderList();
+      });
+    });
+    /* 群公告与成员（任务6/10） */
+    $('pwmMembers').addEventListener('click', function () {
+      pwSheet('PwMenu', false);
+      if (!peekMeta || peekMeta.kind !== 'group') return;
+      renderPwMembers(peekMeta);
+      pwSheet('PwMembers', true);
+    });
+    $('pwMembersClose').addEventListener('click', function () { pwSheet('PwMembers', false); });
+    $('maskPwMembers').addEventListener('click', function () { pwSheet('PwMembers', false); });
+    $('pwInviteBtn').addEventListener('click', function () {
+      if (!peekMeta || peekMeta.kind !== 'group') return;
+      pwSheet('PwInvite', true);
+    });
+    $('pwInviteCancel').addEventListener('click', function () { pwSheet('PwInvite', false); });
+    $('maskPwInvite').addEventListener('click', function () { pwSheet('PwInvite', false); });
+    $('pwAnnEditBtn').addEventListener('click', function () {
+      if (!peekMeta) return;
+      $('pwAnnInput').value = peekMeta.announcement || '';
+      pwSheet('PwAnn', true);
+    });
+    $('maskPwAnn').addEventListener('click', function () { pwSheet('PwAnn', false); });
+    $('pwAnnClear').addEventListener('click', function () { $('pwAnnInput').value = ''; });
+    $('pwAnnSave').addEventListener('click', function () {
+      if (!peekMeta) return;
+      PW.setAnnouncement(peekMeta.id, $('pwAnnInput').value).then(function () {
+        pwSheet('PwAnn', false);
+        toast('群公告已更新');
+        renderPwMembers(peekMeta);
       });
     });
     /* 故事板编辑 */
@@ -911,15 +1157,86 @@
           renderPeekInput(meta);
         }
       });
+      if (peekOrigin === 'home') refreshListSoon(); // 群名/成员等变化同步首页行
     };
   }
 
   /* ---------- 聊天页事件 ---------- */
+  const EMOJIS = ['😀','😁','😂','🤣','😊','😍','🥰','😘','😜','🤪','😎','🤔','😏','😴','🥱','😭','😤','😠','🤯','😱','😳','😈','👍','👎','👌','🙏','💪','🤝','❤️','💔','🔥','✨','🎉','🌸','🍺','🥂','🍚','🌙','⭐','💤','🐶','🐱','🫣'];
+  function compressImage(dataUrl, cb) {
+    // 长边 ≤800、JPEG q80；无 canvas 的环境（如 jsdom 测试）原样返回
+    try {
+      const c = document.createElement('canvas');
+      const ctx2 = c && c.getContext ? c.getContext('2d') : null;
+      if (!ctx2) { cb(dataUrl); return; }
+      const img = new Image();
+      img.onload = function () {
+        try {
+          let w = img.width, h = img.height;
+          const max = 800;
+          if (Math.max(w, h) > max) {
+            const k = max / Math.max(w, h);
+            w = Math.round(w * k); h = Math.round(h * k);
+          }
+          c.width = w; c.height = h;
+          ctx2.drawImage(img, 0, 0, w, h);
+          try { cb(c.toDataURL('image/jpeg', 0.8)); }
+          catch (e) { cb(dataUrl); }
+        } catch (e) { cb(dataUrl); }
+      };
+      img.onerror = function () { cb(dataUrl); };
+      img.src = dataUrl;
+    } catch (e) { cb(dataUrl); }
+  }
+  function insertEmoji(ch) {
+    const inp = $('inp');
+    const s = inp.selectionStart == null ? inp.value.length : inp.selectionStart;
+    const e2 = inp.selectionEnd == null ? inp.value.length : inp.selectionEnd;
+    inp.value = inp.value.slice(0, s) + ch + inp.value.slice(e2);
+    const pos = s + ch.length;
+    inp.selectionStart = inp.selectionEnd = pos;
+    inp.focus();
+    inp.dispatchEvent(new Event('input'));
+  }
+
   function bindChatEvents() {
     $('chatBackBtn').addEventListener('click', closeChat);
+    /* ⊕ = 添加本地图片；Enter 仍发送文字 */
     $('sendBtn').addEventListener('click', function () {
       if (engine.isRunning(currentLover)) engine.stop(currentLover);
-      else doSend();
+      else $('chatFile').click();
+    });
+    /* emoji 面板 */
+    const emojiBar = $('emojibar');
+    emojiBar.innerHTML = '';
+    EMOJIS.forEach(function (e) {
+      const b = document.createElement('button');
+      b.className = 'emoji-cell';
+      b.textContent = e;
+      b.addEventListener('click', function () { insertEmoji(e); });
+      emojiBar.appendChild(b);
+    });
+    $('emojiBtn').addEventListener('click', function () {
+      emojiBar.classList.toggle('show');
+    });
+    /* 本地图片发送：压缩（长边≤800、JPEG q80）后以图片消息发出，未成功不落库 */
+    $('chatFile').addEventListener('change', function () {
+      const f = this.files && this.files[0];
+      this.value = ''; // 允许重复选同一张
+      if (!f || !currentLover) return;
+      if (f.size > 8 * 1024 * 1024) { toast('图片别超过 8MB'); return; }
+      const rd = new FileReader();
+      rd.onload = function () {
+        compressImage(rd.result, function (dataUrl) {
+          if (!dataUrl) { toast('图片处理失败，未发送'); return; }
+          engine.sendChatImage(currentLover, dataUrl).then(function () {
+            emojiBar.classList.remove('show');
+            toast('图片已发送');
+          }, function () { toast('图片发送失败'); });
+        });
+      };
+      rd.onerror = function () { toast('读取图片失败'); };
+      rd.readAsDataURL(f);
     });
     const inp = $('inp');
     inp.addEventListener('input', function () {
@@ -953,7 +1270,7 @@
     $('maskChat').addEventListener('click', function () { sheet('sheetChat', false); });
     $('miProfile').addEventListener('click', function () {
       sheet('sheetChat', false);
-      openProfile(currentLover);
+      openProfileFrom('chat', currentLover);
     });
     $('miClearChat').addEventListener('click', function () {
       sheet('sheetChat', false);
@@ -983,6 +1300,16 @@
   }
 
   /* ---------- 人设详情页 ---------- */
+  let profileOrigin = 'roles'; // roles | chat | moments（返回键回到原位置）
+  let momentsScrollTop = 0;
+  function openProfileFrom(origin, loverId) {
+    profileOrigin = origin || 'roles';
+    if (origin === 'moments') {
+      const sc = document.querySelector('#page-moments .scroll');
+      momentsScrollTop = sc ? sc.scrollTop : 0;
+    }
+    openProfile(loverId);
+  }
   function openProfile(loverId) {
     const p = sync.get(loverId);
     if (!p) return;
@@ -992,6 +1319,13 @@
       (p.avatar ? '<div class="bava"><img src="' + p.avatar + '"></div>' : '<div class="bava" style="background:' + p.avatarColor + '">' + esc(p.name[0]) + '</div>') +
       '<div class="pname">' + esc(p.name) + '</div>' +
       '<div class="pid2">' + esc((p.card && (p.card['身份'] || p.card.job)) || '') + '</div></div>';
+
+    /* 发起对话 + 补充人设（任务8） */
+    html += '<button class="gbtn" id="profileChatBtn">💬 发起对话</button>';
+    html += '<div class="card"><div class="ct">补充人设（只对 TA 生效，高于默认人设）</div><div class="cb">' +
+      '<textarea id="pextraInp" class="compose-input" placeholder="给 TA 写自定义人设补充，例如：他现在升职了、最近在戒烟……保存后每次生成回复都会注入（低于故事板/记忆闭环）"></textarea>' +
+      '<div class="pwrow2"><button class="gbtn ghost" id="pextraClear">清空</button><button class="gbtn" id="pextraSave">保存</button></div>' +
+      '</div></div>';
 
     html += '<div class="card"><div class="ct">档案</div><div class="cb">';
     if (p.card) for (const k of Object.keys(p.card)) {
@@ -1032,6 +1366,22 @@
     html += '<div class="hint">在聊天里发 <span class="kbd">RS 内容</span> 永久写入设定、<span class="kbd">LS 内容</span> 本次会话生效、<span class="kbd">【3小时后】</span> 快进时间。TA 说过的时间约定会被自动记住并在到期时提醒兑现。</div>';
     bd.innerHTML = html;
 
+    /* 发起对话（任务8） */
+    $('profileChatBtn').addEventListener('click', function () { openChat(p.id); });
+    /* 补充人设（任务8）：本地持久化，注入时高于默认人设 */
+    store.get('pextra:' + p.id, '').then(function (v) {
+      const el = $('pextraInp');
+      if (el) el.value = v || '';
+    });
+    $('pextraSave').addEventListener('click', function () {
+      const v = $('pextraInp').value.trim();
+      store.set('pextra:' + p.id, v).then(function () { toast(v ? '补充人设已保存' : '已清空'); });
+    });
+    $('pextraClear').addEventListener('click', function () {
+      $('pextraInp').value = '';
+      store.set('pextra:' + p.id, '').then(function () { toast('已清空'); });
+    });
+
     sync.rs(p.id).then(function (rs) {
       const box = $('rsListBox');
       box.innerHTML = rs.length
@@ -1064,6 +1414,12 @@
     engine.getSettings().then(function (st) {
       const bd = $('setBody');
       bd.innerHTML =
+        '<div class="card"><div class="ct">常用入口</div><div class="cb">' +
+        '<div class="entryrow" id="entrySet">⚙ 设置与 AI 接口</div>' +
+        '<div class="entryrow" id="entryTips">💡 使用提示</div>' +
+        '<div class="entryrow" id="entryHelp">❓ 帮助与关于</div>' +
+        '</div></div>' +
+
         '<div class="card"><div class="ct">AI 接口（OpenAI 兼容，只发到你填的地址）</div><div class="cb">' +
         fld('接口地址 baseURL', 'setBase', st.baseURL, 'https://api.deepseek.com ，兼容 MiniMax / GLM / Kimi 等，可带或不带 /v1') +
         fld('API Key', 'setKey', st.apiKey, '只存在这台设备上，绝不外发', 'password') +
@@ -1132,6 +1488,13 @@
             location.reload();
           });
       });
+      /* 常用入口（设置/提示/帮助都在这 =「我的」页） */
+      $('entrySet').addEventListener('click', function () {
+        const c = bd.querySelector('.card:nth-of-type(2)');
+        if (c && c.scrollIntoView) c.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      $('entryTips').addEventListener('click', function () { $('onboard').classList.add('show'); });
+      $('entryHelp').addEventListener('click', function () { buildHelp(); showPage('page-help'); });
     });
   }
 
@@ -1154,11 +1517,40 @@
 
   /* ---------- 启动 ---------- */
   function bindGlobal() {
-    $('homeSetBtn').addEventListener('click', function () { buildSettings(); showPage('page-set'); });
-    $('homeHelpBtn').addEventListener('click', function () { buildHelp(); showPage('page-help'); });
+    /* 设置/提示/帮助入口已挪到「我的」（设置页顶部入口卡，buildSettings 里绑定） */
     $('setBackBtn').addEventListener('click', function () { showPage('page-home'); renderList(); });
-    $('helpBackBtn').addEventListener('click', function () { showPage('page-home'); });
-    $('profileBackBtn').addEventListener('click', function () { showPage('page-chat'); });
+    $('helpBackBtn').addEventListener('click', function () { showPage('page-set'); });
+    /* 列表行长按：置顶/取消置顶（任务4） */
+    $('siPin').addEventListener('click', function () {
+      sheet('sheetPin', false);
+      pinSuppress = false;
+      if (!pinTarget) return;
+      store.get('pinned', []).then(function (arr) {
+        if (arr.indexOf(pinTarget.id) < 0) arr.unshift(pinTarget.id);
+        return store.set('pinned', arr);
+      }).then(function () { renderList(); toast('已置顶'); });
+    });
+    $('siUnpin').addEventListener('click', function () {
+      sheet('sheetPin', false);
+      pinSuppress = false;
+      if (!pinTarget) return;
+      store.get('pinned', []).then(function (arr) {
+        return store.set('pinned', arr.filter(function (x) { return x !== pinTarget.id; }));
+      }).then(function () { renderList(); toast('已取消置顶'); });
+    });
+    $('siPinCancel').addEventListener('click', function () { sheet('sheetPin', false); pinSuppress = false; });
+    $('maskPin').addEventListener('click', function () { sheet('sheetPin', false); pinSuppress = false; });
+    $('profileBackBtn').addEventListener('click', function () {
+      if (profileOrigin === 'moments') {
+        /* 回到朋友圈原位置（任务8） */
+        showPage('page-moments');
+        const sc = document.querySelector('#page-moments .scroll');
+        if (sc && momentsScrollTop) {
+          setTimeout(function () { sc.scrollTop = momentsScrollTop; }, 60);
+        }
+      } else if (profileOrigin === 'chat') showPage('page-chat');
+      else showPage('page-roles');
+    });
     $('onboardOk').addEventListener('click', function () {
       $('onboard').classList.remove('show');
       store.set('onboarded', 1);
@@ -1217,6 +1609,11 @@
     /* 偷窥/接管：强制实时的会话在 App 打开期间恢复自动聊 */
     if (PW) {
       PW.scheduleAll().catch(function (e) { console.warn('[pw boot]', e && e.message); });
+    }
+    /* 被踢反应队列：启动即查 + 每分钟一次（任务10） */
+    if (engine.kickTick) {
+      engine.kickTick();
+      setInterval(function () { engine.kickTick(); }, 60000);
     }
   };
 })();
