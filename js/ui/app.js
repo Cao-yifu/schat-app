@@ -114,6 +114,11 @@
     } else {
       inner += esc(msg.text || '');
     }
+    if (msg.audioUrl) {
+      inner += '<audio controls preload="none" src="' + msg.audioUrl + '" style="max-width:230px;height:32px;margin-top:6px"></audio>';
+    } else if (msg.hasVoice) {
+      inner += '<button class="vbtn" data-vid="' + msg.id + '" style="margin-top:6px;padding:4px 14px;border-radius:16px;border:none;background:#5a7cf0;color:#fff;font-size:13px">▶ 语音</button>';
+    }
     const ava = me
       ? '<div class="ava"><img src="' + MY_AVATAR + '" alt=""></div>'
       : avatarHtml(persona, 'ava');
@@ -229,6 +234,13 @@
       const id = node.getAttribute('data-id');
       const msg = knownMsg && knownMsg.id === id ? knownMsg : renderedMsgs.find(function (m) { return m.id === id; });
       if (!msg || msg.role === 'sys') continue;
+      const vbtn = node.querySelector('.vbtn');
+      if (vbtn) {
+        vbtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          speakSys(msg);
+        });
+      }
       node.addEventListener('touchstart', function () {
         pressTimer = setTimeout(function () { pressMsg = msg; sheet('sheetMsg', true); }, 480);
       }, { passive: true });
@@ -289,6 +301,53 @@
     engine.send(currentLover, text, q);
   }
 
+  /* ---------- 免费语音：手机系统男声 ---------- */
+  const VOICE_FEMALE_RE = /(ting-?ting|mei-?jia|xiaoxiao|xiaoyi|xiaohan|xiaobei|xiaoni|huihui|晓晓|晓伊|晓涵|晓北|晓妮|慧慧|female|女声)/i;
+  const VOICE_MALE_RE = /(yu-?shu|sin-?ji|bin-?bin|yunjian|yunxi|yunyang|yunfeng|yunhao|kangkang|male|男声)/i;
+  function maleVoices() {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return [];
+    const all = window.speechSynthesis.getVoices() || [];
+    const zh = all.filter(function (v) { return /^zh|^cmn|^yue/i.test(v.lang || ''); });
+    const base = zh.length ? zh : all;
+    const males = base.filter(function (v) { return !VOICE_FEMALE_RE.test(v.name); });
+    const ranked = males.slice().sort(function (a, b) {
+      const am = VOICE_MALE_RE.test(a.name) ? 0 : 1;
+      const bm = VOICE_MALE_RE.test(b.name) ? 0 : 1;
+      return am - bm;
+    });
+    return ranked.length ? ranked : base;
+  }
+  function findVoice(pref) {
+    const vs = maleVoices();
+    if (!vs.length) return null;
+    if (pref && pref.name) {
+      for (const v of vs) if (v.name === pref.name) return v;
+    }
+    return vs[0];
+  }
+  function speakSys(msg) {
+    if (!msg || !msg.text) return;
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(msg.text);
+      const v = findVoice(msg.voicePref);
+      if (v) u.voice = v;
+      u.lang = (v && v.lang) || 'zh-CN';
+      u.rate = 1.0;
+      window.speechSynthesis.speak(u);
+    } catch (e) { /* 静默 */ }
+  }
+  function voiceRowHtml() {
+    let h = '';
+    sync.list().forEach(function (p) {
+      h += '<div class="fld"><label>' + esc(p.name) + '</label>' +
+        '<select id="vsel_' + p.id + '" style="max-width:46%"></select>' +
+        '<button id="vtry_' + p.id + '" style="margin-left:6px;padding:4px 10px;border-radius:12px;border:1px solid #d8d8d8;background:#fff;font-size:12px">试听</button></div>';
+    });
+    return h;
+  }
+
   /* 引擎挂钩 */
   engine.hooks.onMsg = function (loverId, msg, kind) {
     if (loverId === currentLover && lastRenderKey === loverId) {
@@ -307,6 +366,10 @@
   engine.hooks.onSys = function (loverId, text) {
     toast(text);
     if (loverId !== currentLover) renderList();
+  };
+  engine.hooks.onSpeak = function (loverId, msg) {
+    // 免费语音气泡就绪：当前聊天里自动播（受浏览器自动播放策略限制时点按钮即可）
+    if (loverId === currentLover) speakSys(msg);
   };
 
   /* ---------- 聊天页事件 ---------- */
@@ -466,6 +529,15 @@
         fld('温度 temperature', 'setTemp', st.temperature, '0~1.5，越小越稳') +
         '</div></div>' +
 
+        '<div class="card"><div class="ct">语音（免费系统男声 · 明确指令触发 · 每次最多3条）</div><div class="cb">' +
+        switchRow('ttsOn', '语音回复', '仅明确指令触发（用语音回我 / 想听你声音），一次最多 3 条，用尽自动停', st.ttsOn !== false) +
+        voiceRowHtml() +
+        '<div style="font-size:12px;color:#8a8a8a;margin:4px 0 8px">以上是手机系统自带男声，零成本免费。想升级更自然的神经音色可填下面的语音 Key（可选）。</div>' +
+        fld('语音 Key（可选）', 'setTtsKey', st.ttsKey, '只存这台设备，绝不外发；留空 = 免费系统语音', 'password') +
+        fld('语音接口地址（可选）', 'setTtsBase', st.ttsBaseURL, 'OpenAI /audio/speech 兼容，如 https://api.siliconflow.cn/v1') +
+        fld('语音模型（可选）', 'setTtsModel', st.ttsModel, '默认 FunAudioLLM/CosyVoice2-0.5B') +
+        '</div></div>' +
+
         '<div class="card"><div class="ct">回复性格</div><div class="cb">' +
         fld('最长回复字数（硬截断）', 'setMax', st.maxChars, '默认 400；平时 TA 只回 1-2 句，只有你要细节才写长') +
         fld('打字速度（字/秒）', 'setCps', st.cps, '默认 10') +
@@ -505,6 +577,45 @@
       $('setKey').addEventListener('change', function () { save({ apiKey: this.value.trim() }, '已保存'); });
       $('setModel').addEventListener('change', function () { save({ model: this.value.trim() }, '已保存'); });
       $('setTemp').addEventListener('change', function () { save({ temperature: num(this.value, 0.8, 0, 1.5) }, '已保存'); });
+      $('sw_ttsOn').addEventListener('change', function () { save({ ttsOn: this.checked }, '已保存'); });
+      $('setTtsBase').addEventListener('change', function () { save({ ttsBaseURL: this.value.trim() }, '已保存'); });
+      $('setTtsKey').addEventListener('change', function () { save({ ttsKey: this.value.trim() }, '已保存'); });
+      $('setTtsModel').addEventListener('change', function () { save({ ttsModel: this.value.trim() }, '已保存'); });
+
+      /* 每角色音色（系统男声）+ 试听 */
+      function fillVoiceSelects() {
+        const vs = maleVoices();
+        sync.list().forEach(function (p) {
+          const sel = $('vsel_' + p.id);
+          if (!sel) return;
+          const cur = sel.value;
+          let html = '';
+          vs.forEach(function (v) {
+            html += '<option value="' + esc(v.name) + '">' + esc(v.name) + ' · ' + esc(v.lang || '') + '</option>';
+          });
+          if (!vs.length) html = '<option value="">（本机暂无可用语音）</option>';
+          sel.innerHTML = html;
+          if (cur) sel.value = cur;
+        });
+        sync.list().forEach(function (p) {
+          store.get('voicePref_' + p.id, null).then(function (pref) {
+            const sel = $('vsel_' + p.id);
+            if (sel && pref && pref.name) sel.value = pref.name;
+          });
+        });
+      }
+      sync.list().forEach(function (p) {
+        $('vsel_' + p.id).addEventListener('change', function () {
+          store.set('voicePref_' + p.id, { name: this.value, lang: '' }).then(function () { toast('已保存：' + p.name); });
+        });
+        $('vtry_' + p.id).addEventListener('click', function () {
+          const v = $('vsel_' + p.id).value;
+          if (!v) { toast('本机暂无可用语音'); return; }
+          speakSys({ text: '我是' + (p.nickname || p.name) + '。想我了吗。', voicePref: { name: v } });
+        });
+      });
+      if (window.speechSynthesis) window.speechSynthesis.onvoiceschanged = fillVoiceSelects;
+      fillVoiceSelects();
       $('setMax').addEventListener('change', function () { save({ maxChars: num(this.value, 400, 50, 400) }, '已保存'); });
       $('setCps').addEventListener('change', function () { save({ cps: num(this.value, 10, 2, 40) }, '已保存'); });
       $('setFollowSec').addEventListener('change', function () { save({ followUpSec: num(this.value, 30, 5, 300) }, '已保存'); });
