@@ -32,24 +32,12 @@
     keepN: 300,           // 每角色保留消息条数
     historyN: 60,         // 注入模型的历史条数
     intimLib: true,       // 亲密素材参考
-    ttsOn: true,          // 语音回复开关（仅明确指令触发）
-    ttsProvider: 'volcano',   // volcano=火山豆包语音(默认) / siliconflow=硅基流动
-    ttsBaseURL: 'https://api.siliconflow.cn/v1',
-    ttsModel: 'FunAudioLLM/CosyVoice2-0.5B',
-    ttsVoice: 'zh_male_wenrouxuezhang_uranus_bigtts',
-    ttsInstruct: '用自然放松的日常口语语气说，不要播音腔，像发微信语音一样随意',
   };
   let settingsCache = null;
   engine.getSettings = function () {
     if (settingsCache) return Promise.resolve(settingsCache);
     return store.get('settings', {}).then(function (s) {
       settingsCache = Object.assign({}, engine.DEFAULTS, s || {});
-      /* 语音设置迁移：旧版 fish-speech/CosyVoice/james/david 不可用，自动切到火山豆包语音默认音色 */
-      if (/fish|james|david|CosyVoice/i.test(settingsCache.ttsModel + ' ' + settingsCache.ttsVoice)) {
-        settingsCache.ttsModel = engine.DEFAULTS.ttsModel;
-        settingsCache.ttsVoice = engine.DEFAULTS.ttsVoice;
-        store.set('settings', settingsCache).catch(function () {});
-      }
       return settingsCache;
     });
   };
@@ -427,7 +415,6 @@
   /* 回复完成后的收尾：追问定时、照片、裁剪 */
   function afterReply(loverId, persona, msg, opts) {
     const jobs = [];
-    jobs.push(maybeVoice(loverId, persona, msg));
     jobs.push(engine.getSettings().then(function (st) {
       if (st.followUp && !opts.noFollow && !opts.follow) armFollowUp(loverId, persona, st);
     }));
@@ -469,48 +456,6 @@
     }, (st.followUpSec || 30) * 1000);
   }
   function cancelFollowUp(loverId) { clearTimeout(followTimers[loverId]); }
-
-  /* 语音回复：只有明确指令触发，一次触发最多 3 条，用尽即停（控制成本）。
-   * 双平台：火山豆包语音（默认，X-Api-Key 鉴权）或 硅基流动 CosyVoice2（OpenAI 兼容）。 */
-  const VOICE_REQ_RE = /(用语音|语音回|发语音|发条语音|来条语音|语音一下|给我语音|用语音说|语音说|发句语音|语音消息|语音条|想听你的声音|听你声音|说话给我听|你的声音)/;
-  function maybeVoice(loverId, persona, msg) {
-    if (!msg || msg.type !== 'text' || !msg.text) return Promise.resolve();
-    return Promise.all([
-      engine.getSettings(),
-      store.get('voice_' + loverId, null),
-      store.get('voicePref_' + loverId, null),
-    ]).then(function (r) {
-      const st = r[0], vs = r[1], pref = r[2];
-      if (!vs || !vs.left || vs.left <= 0) return;
-      if (st.ttsOn === false) return;
-      if (!st.ttsKey) return; // 没配 Key 不出语音
-      const voice = (pref && pref.name) || persona.ttsVoice || st.ttsVoice || engine.DEFAULTS.ttsVoice;
-      const text = msg.text;
-      const synth = (st.ttsProvider === 'siliconflow')
-        ? api.tts({
-            baseURL: st.ttsBaseURL,
-            apiKey: st.ttsKey,
-            model: st.ttsModel || 'FunAudioLLM/CosyVoice2-0.5B',
-            voice: voice,
-            instruction: persona.ttsInstruct || st.ttsInstruct || '',
-            text: text,
-          })
-        : api.ttsVolc({ apiKey: st.ttsKey, voice: voice, text: text });
-      return store.set('voice_' + loverId, { left: vs.left - 1 }).then(function () {
-        return synth.then(function (res) {
-          if (!res || res.err) {
-            engine.hooks.onSys(loverId, '语音合成失败：' + (res && res.err ? res.err : '未知错误'));
-            return;
-          }
-          const blob = res.blob;
-          msg.audioUrl = URL.createObjectURL(blob);
-          return store.updateMsg(loverId, msg).catch(function () {}).then(function () {
-            engine.hooks.onMsg(loverId, msg, 'update');
-          });
-        });
-      });
-    }).catch(function () {});
-  }
 
   /* 抽签袋：随机不重复抽取，抽完一轮再重新洗牌 */
   /* 照片上下文过滤：时段/室内外/角度（与角色当前时空一致） */
@@ -672,17 +617,6 @@
       }
       const msg = { id: util.uid(), role: 'me', type: 'text', text: text, ts: Date.now(), quote: quote || null };
       const wantPhoto = PHOTO_REQ_RE.test(text) || PHOTO_INTIM_RE.test(text) || PHOTO_LEG_RE.test(text) || PHOTO_HAND_RE.test(text);
-      if (VOICE_REQ_RE.test(text)) {
-        // 明确指令：TA 接下来最多用 3 条语音回复（用尽自动停，控制成本）
-        store.set('voice_' + loverId, { left: 3 });
-        engine.getSettings().then(function (st) {
-          if (!st.ttsKey) {
-            engine.hooks.onSys(loverId, '还没填语音 Key：去「设置 → 语音」填上硅基流动的 sk- 开头的 Key，才能发语音');
-          } else {
-            engine.hooks.onSys(loverId, '接下来 TA 会用语音回你（最多 3 条）');
-          }
-        });
-      }
       return store.appendMsg(loverId, msg).then(function () {
         engine.hooks.onMsg(loverId, msg, 'append');
         if (wantPhoto) {
