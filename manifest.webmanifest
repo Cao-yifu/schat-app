@@ -3,8 +3,8 @@
   "short_name": "Schat",
   "start_url": "./index.html",
   "display": "standalone",
-  "theme_color": "#121715",
-  "background_color": "#121715",
+  "theme_color": "#090D1B",
+  "background_color": "#090D1B",
   "icons": [
     {
       "src": "./icons/icon-192.png",
