@@ -225,7 +225,8 @@
       if (!st.apiKey) throw Object.assign(new Error('先在「设置」里填入 API Key'), { noKey: true });
       const heatP = (st.intimLib !== false && !opts.noIntim) ? updateScene(loverId) : Promise.resolve(0);
       return heatP.then(function (heat) {
-        return buildCtx(loverId, opts.extra).then(function (ctx) {
+        const photoNote = opts.photoSent ? '（你刚给对方发了一张照片。不要用文字描述照片里的内容、不要说照片是在哪拍的、不要点评画面，像平时一样接话就行。）' : '';
+        return buildCtx(loverId, (opts.extra || '') + photoNote).then(function (ctx) {
           // 全部走 API 生成（用户要求：更多 API 参与，前后句逻辑连贯；不做本地直出、不强制塞本地句）
           if (heat >= 1) {
             return pickIntimLines(loverId, persona, heat).then(function (lines) {
@@ -402,6 +403,43 @@
   function cancelFollowUp(loverId) { clearTimeout(followTimers[loverId]); }
 
   /* 抽签袋：随机不重复抽取，抽完一轮再重新洗牌 */
+  /* 照片上下文过滤：时段/室内外/角度（与角色当前时空一致） */
+  const OUTDOOR_PLACE_RE = /(车里|车内|停车场|天台|阳台|公园|海边|江边|户外|街上|路上|操场)/;
+  const INDOOR_PLACE_RE = /(厕所|卫生间|洗手间|办公室|会议室|酒店|宾馆|房间|床上|厨房|浴室|淋浴|展馆|展厅|家里|我家|你家|宿舍)/;
+  function nowPeriod(loverId) {
+    return sync.offset(loverId).then(function (off) {
+      const h = new Date(Date.now() + off).getHours();
+      if (h >= 20 || h < 5) return 'night';
+      if ((h >= 5 && h < 7) || (h >= 17 && h < 20)) return 'dusk';
+      return 'day';
+    });
+  }
+  function filterPool(pool, period, prefIn, prefAngle) {
+    let ok = pool.filter(function (e) {
+      if (period === 'night') return e.t === 'night' || e.t === 'dusk';
+      if (period === 'day') return e.t === 'day' || e.t === 'dusk';
+      return e.t === 'dusk' || e.t === 'any';
+    });
+    if (!ok.length) ok = pool;
+    if (prefIn !== null) {
+      const inOk = ok.filter(function (e) { return e.in === prefIn || e.in == null; });
+      if (inOk.length) ok = inOk;
+    }
+    if (prefAngle) {
+      const aOk = ok.filter(function (e) { return e.a === prefAngle; });
+      if (aOk.length) ok = aOk;
+    }
+    return ok;
+  }
+  function placePrefIn(loverId) {
+    return store.get('scene_' + loverId, null).then(function (sc) {
+      const place = sc && sc.place;
+      if (!place) return null;
+      if (OUTDOOR_PLACE_RE.test(place)) return 0;
+      if (INDOOR_PLACE_RE.test(place)) return 1;
+      return null;
+    });
+  }
   function shuffled(n) {
     const a = [];
     for (let i = 0; i < n; i++) a.push(i);
@@ -427,19 +465,20 @@
     });
   }
 
-  /* 偶尔主动发一张自拍（嵌入式本地池，零网图） */
+  /* 偶尔主动发一张自拍（嵌入式本地池：时段+室内外匹配，零网图） */
   function maybePhoto(loverId, persona) {
     return engine.getSettings().then(function (st) {
       if (!st.photos) return;
-      const lib = (typeof window !== 'undefined' && window.SCHAT && window.SCHAT.SCHAT_PHOTOS) || (typeof globalThis !== 'undefined' && globalThis.SCHAT && globalThis.SCHAT_PHOTOS) || null;
+      const lib = (typeof window !== 'undefined' && window.SCHAT && window.SCHAT.SCHAT_PHOTOS) || (typeof globalThis !== 'undefined' && globalThis.SCHAT && globalThis.SCHAT.SCHAT_PHOTOS) || null;
       const pool = lib && lib[persona.name] && lib[persona.name].selfie;
       if (!pool || !pool.length) return;
-      return sync.lastPhotoAt(loverId).then(function (last) {
-        if (Date.now() - last < 10 * 60 * 1000) return;
+      return Promise.all([sync.lastPhotoAt(loverId), nowPeriod(loverId), placePrefIn(loverId)]).then(function (res) {
+        if (Date.now() - res[0] < 10 * 60 * 1000) return;
         if (Math.random() > 0.16) return;
-        return drawPhoto(loverId, 'selfie', pool).then(function (src) {
+        const filtered = filterPool(pool, res[1], res[2], null);
+        return drawPhoto(loverId, 'selfie', filtered).then(function (entry) {
           return sync.setLastPhotoAt(loverId, Date.now()).then(function () {
-            const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: src, ts: Date.now() };
+            const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: entry.s, ts: Date.now() };
             return appendYou(loverId, msg);
           });
         });
@@ -455,25 +494,28 @@
   const PHOTO_HAND_RE = /(看看手|看手|手照|给我看.*手|你的手)/;
   function sendPhotoNow(loverId, persona, text) {
     return engine.getSettings().then(function (st) {
-      if (!st.photos) return;
+      if (!st.photos) return false;
       const lib = (typeof window !== 'undefined' && window.SCHAT && window.SCHAT.SCHAT_PHOTOS) || (typeof globalThis !== 'undefined' && globalThis.SCHAT && globalThis.SCHAT.SCHAT_PHOTOS) || null;
-      if (!lib) return;
+      if (!lib) return false;
       let pool = null, poolKind = 'selfie';
       if (PHOTO_INTIM_RE.test(text)) { pool = (lib[persona.name] && lib[persona.name].priv) || []; poolKind = 'priv'; }
       else if (PHOTO_LEG_RE.test(text)) { pool = lib['_公共腿'] || []; poolKind = 'leg'; }
       else if (PHOTO_HAND_RE.test(text)) { pool = lib['_公共手'] || []; poolKind = 'hand'; }
       else pool = (lib[persona.name] && lib[persona.name].selfie) || [];
-      if (!pool.length) return;
-      return sync.lastPhotoAt(loverId).then(function (last) {
-        if (Date.now() - last < 20 * 1000) return; // 20 秒内刚发过，不再连发
-        return drawPhoto(loverId, poolKind, pool).then(function (src) {
+      if (!pool.length) return false;
+      return Promise.all([sync.lastPhotoAt(loverId), nowPeriod(loverId), placePrefIn(loverId)]).then(function (res) {
+        if (Date.now() - res[0] < 20 * 1000) return false; // 20 秒内刚发过，不再连发
+        let prefAngle = null;
+        if (/(看看你的脸|看看你长|让我看看你)/.test(text)) prefAngle = 'close';
+        const filtered = filterPool(pool, res[1], res[2], prefAngle);
+        return drawPhoto(loverId, poolKind, filtered).then(function (entry) {
           return sync.setLastPhotoAt(loverId, Date.now()).then(function () {
-            const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: src, ts: Date.now() };
-            return appendYou(loverId, msg);
+            const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: entry.s, ts: Date.now() };
+            return appendYou(loverId, msg).then(function () { return true; });
           });
         });
       });
-    }).catch(function () {});
+    }).catch(function () { return false; });
   }
 
   function handleErr(loverId) {
@@ -523,9 +565,9 @@
       return store.appendMsg(loverId, msg).then(function () {
         engine.hooks.onMsg(loverId, msg, 'append');
         if (wantPhoto) {
-          // 明确要照片：先自动发一张（本地嵌入式池），再让 TA 文字回应
-          return sendPhotoNow(loverId, persona, text).then(function () {
-            return streamReply(loverId, persona, {}).catch(handleErr(loverId));
+          // 明确要照片：先自动发一张（本地嵌入式池，按当前时段/场景筛选），再让 TA 文字回应
+          return sendPhotoNow(loverId, persona, text).then(function (sent) {
+            return streamReply(loverId, persona, sent ? { photoSent: true } : {}).catch(handleErr(loverId));
           });
         }
         return streamReply(loverId, persona, {}).catch(handleErr(loverId));
