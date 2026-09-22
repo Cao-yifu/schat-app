@@ -35,7 +35,7 @@
     ttsOn: true,          // 语音回复开关（仅明确指令触发）
     ttsBaseURL: 'https://api.siliconflow.cn/v1',
     ttsModel: 'FunAudioLLM/CosyVoice2-0.5B',
-    ttsVoice: 'FunAudioLLM/CosyVoice2-0.5B:james',
+    ttsVoice: 'FunAudioLLM/CosyVoice2-0.5B:alex',
   };
   let settingsCache = null;
   engine.getSettings = function () {
@@ -481,7 +481,7 @@
           baseURL: st.ttsBaseURL,
           apiKey: st.ttsKey,
           model: st.ttsModel || 'FunAudioLLM/CosyVoice2-0.5B',
-          voice: (persona.ttsVoice || (pref && pref.name) || st.ttsVoice) || 'FunAudioLLM/CosyVoice2-0.5B:james',
+          voice: (persona.ttsVoice || (pref && pref.name) || st.ttsVoice) || 'FunAudioLLM/CosyVoice2-0.5B:alex',
           text: msg.text,
         }).then(function (blob) {
           if (!blob) return;
