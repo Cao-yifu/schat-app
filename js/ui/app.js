@@ -521,7 +521,7 @@
 
         '<div class="card"><div class="ct">语音（云端音色 · 明确指令触发 · 每次最多3条）</div><div class="cb">' +
         switchRow('ttsOn', '语音回复', '仅明确指令触发（用语音回我 / 想听你声音），一次最多 3 条，用尽自动停', st.ttsOn !== false) +
-        fld('语音 Key', 'setTtsKey', st.ttsKey, '只存这台设备；硅基流动 siliconflow.cn 注册即有免费额度', 'password') +
+        fld('语音 Key', 'setTtsKey', st.ttsKey, '硅基流动 siliconflow.cn 免费注册即送额度；CosyVoice2-0.5B 是免费模型（有频控），试听与语音≈0成本', 'password') +
         fld('语音接口地址', 'setTtsBase', st.ttsBaseURL, 'OpenAI /audio/speech 兼容，默认 https://api.siliconflow.cn/v1') +
         fld('语音模型', 'setTtsModel', st.ttsModel, '默认 FunAudioLLM/CosyVoice2-0.5B（中文超自然）') +
         '<div style="font-size:12px;color:#8a8a8a;margin:4px 0">每个角色绑定一个男声，下方音色库点▶试听在线合成。</div>' +
