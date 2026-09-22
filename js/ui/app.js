@@ -3,7 +3,7 @@
  */
 (function () {
   const G = window.SCHAT = window.SCHAT || {};
-  const util = G.util, store = G.store, engine = G.engine, sync = G.sync, tp = G.timeparse;
+  const util = G.util, store = G.store, engine = G.engine, sync = G.sync, tp = G.timeparse, api = G.api;
 
   const $ = function (id) { return document.getElementById(id); };
   const MY_AVATAR = 'data:image/jpeg;base64,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'; // 我的头像
@@ -116,8 +116,6 @@
     }
     if (msg.audioUrl) {
       inner += '<audio controls preload="none" src="' + msg.audioUrl + '" style="max-width:230px;height:32px;margin-top:6px"></audio>';
-    } else if (msg.hasVoice) {
-      inner += '<button class="vbtn" data-vid="' + msg.id + '" style="margin-top:6px;padding:4px 14px;border-radius:16px;border:none;background:#5a7cf0;color:#fff;font-size:13px">▶ 语音</button>';
     }
     const ava = me
       ? '<div class="ava"><img src="' + MY_AVATAR + '" alt=""></div>'
@@ -234,13 +232,6 @@
       const id = node.getAttribute('data-id');
       const msg = knownMsg && knownMsg.id === id ? knownMsg : renderedMsgs.find(function (m) { return m.id === id; });
       if (!msg || msg.role === 'sys') continue;
-      const vbtn = node.querySelector('.vbtn');
-      if (vbtn) {
-        vbtn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          speakSys(msg);
-        });
-      }
       node.addEventListener('touchstart', function () {
         pressTimer = setTimeout(function () { pressMsg = msg; sheet('sheetMsg', true); }, 480);
       }, { passive: true });
@@ -301,49 +292,52 @@
     engine.send(currentLover, text, q);
   }
 
-  /* ---------- 免费语音：手机系统男声 ---------- */
-  const VOICE_FEMALE_RE = /(ting-?ting|mei-?jia|xiaoxiao|xiaoyi|xiaohan|xiaobei|xiaoni|huihui|晓晓|晓伊|晓涵|晓北|晓妮|慧慧|female|女声)/i;
-  const VOICE_MALE_RE = /(yu-?shu|sin-?ji|bin-?bin|yunjian|yunxi|yunyang|yunfeng|yunhao|kangkang|male|男声)/i;
-  function maleVoices() {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return [];
-    const all = window.speechSynthesis.getVoices() || [];
-    const zh = all.filter(function (v) { return /^zh|^cmn|^yue/i.test(v.lang || ''); });
-    const base = zh.length ? zh : all;
-    const males = base.filter(function (v) { return !VOICE_FEMALE_RE.test(v.name); });
-    const ranked = males.slice().sort(function (a, b) {
-      const am = VOICE_MALE_RE.test(a.name) ? 0 : 1;
-      const bm = VOICE_MALE_RE.test(b.name) ? 0 : 1;
-      return am - bm;
+  /* ---------- 云端音色库（试听 = 直接调云接口播放） ---------- */
+  /* CosyVoice2 男声音色（SiliconFlow / OpenAI 兼容接口通用） */
+  const CLOUD_VOICES = [
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:james', label: 'James · 低沉磁性' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:alex', label: 'Alex · 沉稳青年' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:benjamin', label: 'Benjamin · 温柔暖男' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:charles', label: 'Charles · 成熟中年' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:david', label: 'David · 爽朗阳光' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:henry', label: 'Henry · 干净清亮' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:liam', label: 'Liam · 慵懒痞气' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:lucas', label: 'Lucas · 活泼少年' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:mike', label: 'Mike · 硬朗低音' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:william', label: 'William · 斯文低沉' },
+  ];
+  const VOICE_SAMPLE = '是我。想我了吗？今晚想见你。';
+  function playCloud(text, voiceId, key, baseURL, model, onErr) {
+    if (!key) { if (onErr) onErr('先在上方填语音 Key 才能试听'); return; }
+    api.tts({
+      baseURL: baseURL,
+      apiKey: key,
+      model: model || 'FunAudioLLM/CosyVoice2-0.5B',
+      voice: voiceId,
+      text: text,
+    }).then(function (blob) {
+      if (!blob) { if (onErr) onErr('试听失败：接口或 Key 无效'); return; }
+      const url = URL.createObjectURL(blob);
+      const a = new Audio(url);
+      a.onended = function () { URL.revokeObjectURL(url); };
+      a.play().catch(function () { /* 自动播放被拦截则无动作 */ });
     });
-    return ranked.length ? ranked : base;
   }
-  function findVoice(pref) {
-    const vs = maleVoices();
-    if (!vs.length) return null;
-    if (pref && pref.name) {
-      for (const v of vs) if (v.name === pref.name) return v;
-    }
-    return vs[0];
-  }
-  function speakSys(msg) {
-    if (!msg || !msg.text) return;
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    try {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(msg.text);
-      const v = findVoice(msg.voicePref);
-      if (v) u.voice = v;
-      u.lang = (v && v.lang) || 'zh-CN';
-      u.rate = 1.0;
-      window.speechSynthesis.speak(u);
-    } catch (e) { /* 静默 */ }
-  }
-  function voiceRowHtml() {
+  function voiceRowsHtml() {
+    /* 每角色一个音色下拉（云端男声库） */
     let h = '';
     sync.list().forEach(function (p) {
+      let opts = '';
+      CLOUD_VOICES.forEach(function (v) {
+        opts += '<option value="' + esc(v.id) + '">' + esc(v.label) + '</option>';
+      });
       h += '<div class="fld"><label>' + esc(p.name) + '</label>' +
-        '<select id="vsel_' + p.id + '" style="max-width:46%"></select>' +
-        '<button id="vtry_' + p.id + '" style="margin-left:6px;padding:4px 10px;border-radius:12px;border:1px solid #d8d8d8;background:#fff;font-size:12px">试听</button></div>';
+        '<select id="vsel_' + p.id + '" style="max-width:52%">' + opts + '</select></div>';
+    });
+    /* 音色库试听列表：一行一个男声，点试听直接云端合成播放 */
+    CLOUD_VOICES.forEach(function (v, i) {
+      h += '<div class="fld"><label>' + esc(v.label) + '</label>' +
+        '<button id="vtry_' + i + '" style="margin-left:6px;padding:4px 12px;border-radius:12px;border:1px solid #d8d8d8;background:#fff;font-size:12px">▶ 试听</button></div>';
     });
     return h;
   }
@@ -366,10 +360,6 @@
   engine.hooks.onSys = function (loverId, text) {
     toast(text);
     if (loverId !== currentLover) renderList();
-  };
-  engine.hooks.onSpeak = function (loverId, msg) {
-    // 免费语音气泡就绪：当前聊天里自动播（受浏览器自动播放策略限制时点按钮即可）
-    if (loverId === currentLover) speakSys(msg);
   };
 
   /* ---------- 聊天页事件 ---------- */
@@ -529,13 +519,13 @@
         fld('温度 temperature', 'setTemp', st.temperature, '0~1.5，越小越稳') +
         '</div></div>' +
 
-        '<div class="card"><div class="ct">语音（免费系统男声 · 明确指令触发 · 每次最多3条）</div><div class="cb">' +
+        '<div class="card"><div class="ct">语音（云端音色 · 明确指令触发 · 每次最多3条）</div><div class="cb">' +
         switchRow('ttsOn', '语音回复', '仅明确指令触发（用语音回我 / 想听你声音），一次最多 3 条，用尽自动停', st.ttsOn !== false) +
-        voiceRowHtml() +
-        '<div style="font-size:12px;color:#8a8a8a;margin:4px 0 8px">以上是手机系统自带男声，零成本免费。想升级更自然的神经音色可填下面的语音 Key（可选）。</div>' +
-        fld('语音 Key（可选）', 'setTtsKey', st.ttsKey, '只存这台设备，绝不外发；留空 = 免费系统语音', 'password') +
-        fld('语音接口地址（可选）', 'setTtsBase', st.ttsBaseURL, 'OpenAI /audio/speech 兼容，如 https://api.siliconflow.cn/v1') +
-        fld('语音模型（可选）', 'setTtsModel', st.ttsModel, '默认 FunAudioLLM/CosyVoice2-0.5B') +
+        fld('语音 Key', 'setTtsKey', st.ttsKey, '只存这台设备；硅基流动 siliconflow.cn 注册即有免费额度', 'password') +
+        fld('语音接口地址', 'setTtsBase', st.ttsBaseURL, 'OpenAI /audio/speech 兼容，默认 https://api.siliconflow.cn/v1') +
+        fld('语音模型', 'setTtsModel', st.ttsModel, '默认 FunAudioLLM/CosyVoice2-0.5B（中文超自然）') +
+        '<div style="font-size:12px;color:#8a8a8a;margin:4px 0">每个角色绑定一个男声，下方音色库点▶试听在线合成。</div>' +
+        voiceRowsHtml() +
         '</div></div>' +
 
         '<div class="card"><div class="ct">回复性格</div><div class="cb">' +
@@ -582,40 +572,25 @@
       $('setTtsKey').addEventListener('change', function () { save({ ttsKey: this.value.trim() }, '已保存'); });
       $('setTtsModel').addEventListener('change', function () { save({ ttsModel: this.value.trim() }, '已保存'); });
 
-      /* 每角色音色（系统男声）+ 试听 */
-      function fillVoiceSelects() {
-        const vs = maleVoices();
-        sync.list().forEach(function (p) {
-          const sel = $('vsel_' + p.id);
-          if (!sel) return;
-          const cur = sel.value;
-          let html = '';
-          vs.forEach(function (v) {
-            html += '<option value="' + esc(v.name) + '">' + esc(v.name) + ' · ' + esc(v.lang || '') + '</option>';
-          });
-          if (!vs.length) html = '<option value="">（本机暂无可用语音）</option>';
-          sel.innerHTML = html;
-          if (cur) sel.value = cur;
-        });
-        sync.list().forEach(function (p) {
-          store.get('voicePref_' + p.id, null).then(function (pref) {
-            const sel = $('vsel_' + p.id);
-            if (sel && pref && pref.name) sel.value = pref.name;
-          });
-        });
-      }
+      /* 每角色音色绑定（云端男声库）+ 音色库试听 */
       sync.list().forEach(function (p) {
-        $('vsel_' + p.id).addEventListener('change', function () {
-          store.set('voicePref_' + p.id, { name: this.value, lang: '' }).then(function () { toast('已保存：' + p.name); });
+        store.get('voicePref_' + p.id, null).then(function (pref) {
+          const sel = $('vsel_' + p.id);
+          if (sel && pref && pref.name) sel.value = pref.name;
         });
-        $('vtry_' + p.id).addEventListener('click', function () {
-          const v = $('vsel_' + p.id).value;
-          if (!v) { toast('本机暂无可用语音'); return; }
-          speakSys({ text: '我是' + (p.nickname || p.name) + '。想我了吗。', voicePref: { name: v } });
+        $('vsel_' + p.id).addEventListener('change', function () {
+          store.set('voicePref_' + p.id, { name: this.value }).then(function () { toast('已保存：' + p.name); });
         });
       });
-      if (window.speechSynthesis) window.speechSynthesis.onvoiceschanged = fillVoiceSelects;
-      fillVoiceSelects();
+      CLOUD_VOICES.forEach(function (v, i) {
+        $('vtry_' + i).addEventListener('click', function () {
+          const key = $('setTtsKey').value.trim();
+          const base = $('setTtsBase').value.trim();
+          const model = $('setTtsModel').value.trim();
+          toast('云端合成中…');
+          playCloud(VOICE_SAMPLE, v.id, key, base, model, function (e) { toast(e); });
+        });
+      });
       $('setMax').addEventListener('change', function () { save({ maxChars: num(this.value, 400, 50, 400) }, '已保存'); });
       $('setCps').addEventListener('change', function () { save({ cps: num(this.value, 10, 2, 40) }, '已保存'); });
       $('setFollowSec').addEventListener('change', function () { save({ followUpSec: num(this.value, 30, 5, 300) }, '已保存'); });
