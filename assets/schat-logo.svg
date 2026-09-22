@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">Schat orbital C logo</title>
+  <defs>
+    <linearGradient id="ring" x1="16" y1="16" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E8F9FF"/>
+      <stop offset=".5" stop-color="#A795FF"/>
+      <stop offset="1" stop-color="#77B8FF"/>
+    </linearGradient>
+    <radialGradient id="node">
+      <stop stop-color="#FFD0B2"/>
+      <stop offset=".5" stop-color="#FF8B55"/>
+      <stop offset="1" stop-color="#E84E22"/>
+    </radialGradient>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="7"/></filter>
+  </defs>
+  <path d="M94 33A44 44 0 1 0 94 95" fill="none" stroke="url(#ring)" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="94" cy="33" r="13" fill="#FF8B55" opacity=".28" filter="url(#glow)"/>
+  <circle cx="94" cy="33" r="8" fill="url(#node)" stroke="#FFE2D1" stroke-width="2"/>
+</svg>
