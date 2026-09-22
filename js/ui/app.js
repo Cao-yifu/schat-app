@@ -322,7 +322,8 @@
       inp.style.height = Math.min(96, inp.scrollHeight) + 'px';
     });
     inp.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) {
+      // 回车即发送（含手机虚拟键盘），Shift+Enter 换行
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         doSend();
       }
