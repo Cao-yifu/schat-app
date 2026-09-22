@@ -93,16 +93,24 @@
   const INTIM_STRONG = /(硬了|湿了|进来|深一点|受不了|别停|顶|插|骑|坐上来|呻吟|高潮|射|含住|里面|自己动|求我|叫出来|出声|别忍|趴好|操你|干死|鸡巴|骚逼|贱货|欠操|妈的|母狗|爽死|插进|舔我|射了|叫老公|爬过来|我要你|要你|放倒)/;
   /* 用户反馈触发：要更下流的信号，立即拉高热峰值并锁定脏话风格一段时间 */
   const DIRTY_RE = /(更下流|更脏|再脏|说脏话|脏话|越脏越好|再黄|更黄|放开|别害羞|粗口|再粗|骚一点|贱一点|别装|不准收敛|保持下流|继续下流|别停哦|用力点|再狠)/;
-  /* 做爱阶段表：素材与对白跟着剧情走，避免跳戏 */
+  /* 做爱阶段表：素材与对白跟着剧情走，避免跳戏。
+   * 5-7 为射精高潮段：逼近堆叠 → 射精瞬间 → 缓缓下落，氛围词原地停留拉长最高点 */
   const STAGE_NAMES = [
     '前戏调情（接吻、抚摸、撩拨，衣服还穿着）',
     '脱衣贴身（互相脱、肌肤相贴、亲遍）',
     '口活手活（含住、舔、用手指、跪着）',
     '进入（刚插进来那一下，紧、胀）',
     '抽插（节奏、体位、力度，越干越狠）',
-    '高潮（一起到、射出来、痉挛瘫软）',
+    '逼近临界（憋着、越顶越快、要射了——疯话堆叠）',
+    '射精瞬间（最高点、爆发）',
+    '高潮余波（缓缓下落、抖、瘫、喘）',
     '事后温存（抱着、复盘、余韵，温柔又下流）'
   ];
+  const CLIMAX_NOTES = {
+    5: '你们正在逼近临界——憋着，越顶越快：这一轮的疯话要快速向上加强、一层层堆叠，短促急促的脏话加上极致逼问（要射了吗？求我。叫出来。谁在操你？）。',
+    6: '这是最高潮——射精瞬间：把堆到顶的情绪用爆发式的极致粗口或逼问全部砸出来，这是全程最狠的一轮，别一笔带过。',
+    7: '刚射完——缓缓下落：抖、瘫、喘，余韵里还带着下流话，节奏放慢，温柔里带脏，别立刻跳去别的。'
+  };
 
   /* ---------- 场景状态机：事件驱动触发（不是关键词驱动） ----------
    * normal(日常) → warm(暧昧,注入素材) → sex(做爱,API+场景指引)
@@ -161,8 +169,14 @@
         const mode = heat >= 60 ? 'sex' : (heat >= 20 ? 'warm' : 'normal');
         let stage = null;
         if (mode === 'sex') {
-          // 进入 sex 时从第 0 阶段开始；之后每轮推进一步，到事后温存封顶
-          stage = wasSex ? Math.min(6, ((sc.stage == null ? -1 : sc.stage) + 1)) : 0;
+          if (!wasSex) {
+            stage = 0; // 进入 sex 从第 0 阶段开始
+          } else {
+            const cur = (sc.stage == null ? -1 : sc.stage);
+            // 射精高潮段（5-7）：用户用氛围词维持时原地停留，把最高点拉长，别太短促
+            if (cur >= 5 && hasAmb && !hasStrong && !hasTrig) stage = cur;
+            else stage = Math.min(8, cur + 1); // 到事后温存封顶
+          }
         }
         const place = sniffPlace(msgs) || (sc && sc.place) || null;
         const tier = mode === 'sex' ? 2 : (mode === 'warm' ? 1 : 0);
@@ -189,6 +203,7 @@
       };
       const one = function (pool) { return (pool && pool.length) ? pick(pool, 1)[0] : null; };
       const perPool = (lib.per && lib.per[persona.name]) || (lib.per && lib.per['孙铎']) || [];
+      const cliPool = (lib.climax && lib.climax[persona.name]) || (lib.climax && lib.climax['孙铎']) || [];
       const stage = sc && sc.stage;
       const lines = [];
       if (heat >= 2) {
@@ -198,8 +213,10 @@
         else if (stage === 2) { const x = one(lib.scenes.hard); if (x) lines.push(x); const y = one(lib.scenes.heat); if (y) lines.push(y); const z = one(perPool); if (z) lines.push(z); }
         else if (stage === 3) { lines.push.apply(lines, pick(lib.scenes.push, 2)); const x = one(perPool); if (x) lines.push(x); }
         else if (stage === 4) { lines.push.apply(lines, pick(lib.scenes.hard, 2)); const x = one(lib.scenes.bed); if (x) lines.push(x); }
-        else if (stage === 5) { lines.push.apply(lines, pick(lib.scenes.moan, 2)); const x = one(lib.scenes.bed); if (x) lines.push(x); }
-        else if (stage === 6) { lines.push.apply(lines, pick(lib.scenes.after, 2)); const x = one(perPool); if (x) lines.push(x); }
+        else if (stage === 5) { lines.push.apply(lines, pick(cliPool, 2)); const x = one(lib.scenes.moan); if (x) lines.push(x); }
+        else if (stage === 6) { const x = one(cliPool); if (x) lines.push(x); const y = one(lib.scenes.moan); if (y) lines.push(y); const z = one(lib.scenes.dirty); if (z) lines.push(z); }
+        else if (stage === 7) { const x = one(lib.scenes.moan); if (x) lines.push(x); const y = one(lib.scenes.after); if (y) lines.push(y); const z = one(perPool); if (z) lines.push(z); }
+        else if (stage === 8) { lines.push.apply(lines, pick(lib.scenes.after, 2)); const x = one(perPool); if (x) lines.push(x); }
         else {
           if (lib.scenes.hard && lib.scenes.hard.length) lines.push.apply(lines, pick(lib.scenes.hard, 2));
           const x = one(lib.scenes.bed); if (x) lines.push(x);
@@ -219,8 +236,11 @@
     return store.get('scene_' + loverId, null).then(function (sc) {
       let note = '现在你们已经在床上了，正在进行中：不许提工作、行程、巡馆、开会、吃饭这类无关的事，你写的内容只能是此刻床上的反应、动作和下流话。必须接着对方刚说的话和动作往下回应，不许自顾自另起一段。';
       const stage = sc && sc.stage;
-      if (stage != null && STAGE_NAMES[stage]) {
-        note += '你们正在进行「' + STAGE_NAMES[stage] + '」这一步：这一轮的对白、动作、下流话必须贴住这一步写，别跳步骤（还没进入就别喊射、已经射完就别重新开始），一步一步往前推。';
+      if (stage != null) {
+        if (CLIMAX_NOTES[stage]) note += CLIMAX_NOTES[stage];
+        else if (STAGE_NAMES[stage]) {
+          note += '你们正在进行「' + STAGE_NAMES[stage] + '」这一步：这一轮的对白、动作、下流话必须贴住这一步写，别跳步骤（还没进入就别喊射、已经射完就别重新开始），一步一步往前推。';
+        }
       }
       if (sc && sc.dirty) {
         note += '对方刚让你更下流——现在正是波峰：接下来连续几轮都要保持最脏、最直接的尺度和下流话，只升不降，绝不在这一两轮收敛、变客气、道歉或岔开话题。';
