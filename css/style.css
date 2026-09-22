@@ -230,3 +230,43 @@ details.sec .cb{padding:4px 16px 16px}
   .hd{margin-top:0;height:auto;min-height:51px;padding:calc(var(--safe-t) + 10px) 16px 10px}
   .hd.chatbar{margin-top:0;height:auto;min-height:61px;padding:calc(var(--safe-t) + 10px) 16px 10px}
 }
+
+/* ============ 偷窥 / 接管 ============ */
+.pwent{display:flex;flex-direction:column;gap:10px;padding:14px 18px 2px}
+.pwent-btn{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:linear-gradient(110deg,rgba(141,232,211,.12),rgba(119,184,255,.10));border:1px solid var(--stroke);border-radius:18px;padding:13px 16px;cursor:pointer;color:var(--text)}
+.pwent-btn:active{background:var(--glass)}
+.pwic{font-size:22px}
+.pwt{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.pwt b{font-size:14px;font-weight:600}
+.pwt small{font-size:11px;color:var(--secondary)}
+.pwarrow{color:var(--tertiary);font-size:18px}
+.pwhint{font-size:12px;color:var(--secondary);line-height:1.7;padding:12px 18px 6px}
+.pwsess{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--stroke);cursor:pointer}
+.pwsess:active{background:var(--glass-soft)}
+.pwsess .dualava{display:flex}
+.pwsess .dualava .avatar{width:44px;height:44px;border:2px solid #202941}
+.pwsess .dualava .avatar+.avatar{margin-left:-12px}
+.pwsess .mid{flex:1;min-width:0}
+.pwsess .nm{font-size:14px;font-weight:600}
+.pwsess .pv{font-size:12px;color:var(--secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.pwsess .st{font-size:10px;color:var(--mint);margin-top:3px}
+.pwsess .tm{font-size:10px;color:var(--tertiary);align-self:flex-start;margin-top:3px}
+/* 控制条 */
+.pwbar{flex:none;display:flex;flex-wrap:wrap;gap:6px;padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.02)}
+.pwbtn{flex:none;border:1px solid var(--stroke);background:var(--glass-soft);color:var(--text);border-radius:12px;padding:6px 11px;font-size:12px;cursor:pointer;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.pwbtn:active{background:var(--glass)}
+.pwbtn.on{background:linear-gradient(145deg,rgba(141,232,211,.28),rgba(119,184,255,.24));border-color:var(--active-stroke);color:var(--mint)}
+.pwbtn.warn{border-color:rgba(255,139,85,.45);color:var(--orange)}
+.pwbtn.note{border-color:transparent;background:transparent;color:var(--secondary);flex-basis:100%;text-align:left;padding:2px 2px 0}
+/* 窥屏消息：群聊名签 + 右侧气泡名字靠右 */
+.msg .wrap .nm{font-size:9px;color:var(--secondary);margin:0 3px 2px}
+.msg.me .wrap .nm{text-align:right}
+/* 角色选择 */
+.pwpick{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 8px;padding:6px 0 14px}
+.pwpick .rolecard .avatar{width:46px;height:46px;border:2px solid transparent}
+.pwpick .rolecard.sel .avatar{border-color:var(--mint);box-shadow:0 0 0 2px rgba(141,232,211,.25)}
+.pwpick .rolecard.sel .nm{color:var(--mint)}
+.pwrow2{display:flex;gap:10px}
+.pwrow2 .gbtn{flex:1;margin-top:10px}
+.pwrow2 .gbtn.ghost{background:transparent;color:var(--orange);border:1px solid rgba(255,139,85,.4)}
+
