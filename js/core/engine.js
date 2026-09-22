@@ -34,8 +34,8 @@
     intimLib: true,       // 亲密素材参考
     ttsOn: true,          // 语音回复开关（仅明确指令触发）
     ttsBaseURL: 'https://api.siliconflow.cn/v1',
-    ttsModel: 'FunAudioLLM/CosyVoice2-0.5B',
-    ttsVoice: 'FunAudioLLM/CosyVoice2-0.5B:alex',
+    ttsModel: 'fishaudio/fish-speech-1.5',
+    ttsVoice: 'fishaudio/fish-speech-1.5:alex',
     ttsInstruct: '用自然放松的日常口语语气说，不要播音腔，像发微信语音一样随意',
   };
   let settingsCache = null;
