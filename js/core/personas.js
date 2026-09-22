@@ -4,7 +4,7 @@
  */
 (function () {
   const G = typeof window !== "undefined" ? window : globalThis;
-  G.SCHAT_PERSONAS_VER = 25;
+  G.SCHAT_PERSONAS_VER = 26;
   G.SCHAT_PERSONAS = [
   {
     "id": "孙铎",
@@ -291,12 +291,8 @@
       "出差取消：他本要飞外地，临时取消，第一个告诉了你。那天他约你见了面，但什么都没说破。"
     ],
     "photoKw": "hotel,travel",
-    "photoLocal": ["img/sunduo/01.jpg", "img/sunduo/02.jpg", "img/sunduo/03.jpg", "img/sunduo/04.jpg", "img/sunduo/05.jpg", "img/sunduo/06.jpg"],
-    "photoIntim": [
-    "img/sunduo/intim_01.jpg",
-    "img/sunduo/intim_02.jpg",
-    "img/sunduo/intim_03.jpg"
-  ],
+    "photoLocal": [],
+    "photoIntim": [],
     "isDefault": true
   },
   {
@@ -395,11 +391,8 @@
     ],
     "prefs": [],
     "photoKw": "hospital,doctor",
-    "photoLocal": ["img/xulang/01.jpg", "img/xulang/02.jpg", "img/xulang/03.jpg", "img/xulang/04.jpg", "img/xulang/05.jpg", "img/xulang/06.jpg", "img/xulang/07.jpg"],
-    "photoIntim": [
-    "img/xulang/intim_01.jpg",
-    "img/xulang/intim_02.jpg"
-  ]
+    "photoLocal": [],
+    "photoIntim": []
   },
   {
     "id": "小泽",
@@ -497,18 +490,8 @@
     ],
     "prefs": [],
     "photoKw": "cat,pet",
-    "photoLocal": ["img/xiaoze/01.jpg", "img/xiaoze/02.jpg", "img/xiaoze/03.jpg", "img/xiaoze/04.jpg", "img/xiaoze/05.jpg", "img/xiaoze/06.jpg"],
-    "photoIntim": [
-    "img/xiaoze/intim_01.jpg",
-    "img/xiaoze/intim_02.jpg",
-    "img/xiaoze/intim_03.jpg",
-    "img/xiaoze/intim_04.jpg",
-    "img/xiaoze/intim_05.jpg",
-    "img/xiaoze/intim_06.jpg",
-    "img/xiaoze/intim_07.jpg",
-    "img/xiaoze/intim_08.jpg",
-    "img/xiaoze/intim_09.jpg"
-  ]
+    "photoLocal": [],
+    "photoIntim": []
   },
   {
     "id": "梁川",
@@ -616,12 +599,8 @@
     ],
     "prefs": [],
     "photoKw": "architecture,gym",
-    "photoLocal": ["img/liangchuan/01.jpg", "img/liangchuan/02.jpg", "img/liangchuan/03.jpg", "img/liangchuan/04.jpg", "img/liangchuan/05.jpg", "img/liangchuan/06.jpg"],
-    "photoIntim": [
-    "img/liangchuan/intim_01.jpg",
-    "img/liangchuan/intim_02.jpg",
-    "img/liangchuan/intim_03.jpg"
-  ]
+    "photoLocal": [],
+    "photoIntim": []
   },
   {
     "id": "阿杰",
@@ -714,13 +693,8 @@
     ],
     "prefs": [],
     "photoKw": "motorcycle,garage",
-    "photoLocal": ["img/ajie/01.jpg", "img/ajie/02.jpg", "img/ajie/03.jpg", "img/ajie/04.jpg", "img/ajie/05.jpg", "img/ajie/06.jpg"],
-    "photoIntim": [
-    "img/ajie/intim_01.jpg",
-    "img/ajie/intim_02.jpg",
-    "img/ajie/intim_03.jpg",
-    "img/ajie/intim_04.jpg"
-  ]
+    "photoLocal": [],
+    "photoIntim": []
   },
   {
     "id": "齐越",
@@ -821,18 +795,8 @@
     ],
     "prefs": [],
     "photoKw": "cooking,home",
-    "photoLocal": ["img/qiyue/01.jpg", "img/qiyue/02.jpg", "img/qiyue/03.jpg", "img/qiyue/04.jpg", "img/qiyue/05.jpg", "img/qiyue/06.jpg"],
-    "photoIntim": [
-    "img/qiyue/intim_01.jpg",
-    "img/qiyue/intim_02.jpg",
-    "img/qiyue/intim_03.jpg",
-    "img/qiyue/intim_04.jpg",
-    "img/qiyue/intim_05.jpg",
-    "img/qiyue/intim_06.jpg",
-    "img/qiyue/intim_07.jpg",
-    "img/qiyue/intim_08.jpg",
-    "img/qiyue/intim_09.jpg"
-  ]
+    "photoLocal": [],
+    "photoIntim": []
   },
   {
     "id": "乐恩",
@@ -940,20 +904,8 @@
     ],
     "prefs": [],
     "photoKw": "basketball,campus",
-    "photoLocal": ["img/leen/01.jpg", "img/leen/02.jpg", "img/leen/03.jpg", "img/leen/04.jpg", "img/leen/05.jpg", "img/leen/06.jpg"],
-    "photoIntim": [
-    "img/leen/intim_01.jpg",
-    "img/leen/intim_02.jpg",
-    "img/leen/intim_03.jpg",
-    "img/leen/intim_04.jpg",
-    "img/leen/intim_05.jpg",
-    "img/leen/intim_06.jpg",
-    "img/leen/intim_07.jpg",
-    "img/leen/intim_08.jpg",
-    "img/leen/intim_09.jpg",
-    "img/leen/intim_10.jpg",
-    "img/leen/intim_11.jpg"
-  ]
+    "photoLocal": [],
+    "photoIntim": []
   },
 
   {
@@ -970,7 +922,7 @@
       "身材": "178cm，120斤（60kg），清瘦有线条，腿长，比例很好。",
       "性格": "阳光开朗，干净努力，是那种笑起来很好看的学长。特别容易害羞脸红，被你逗两句就哈哈笑、耳根发红。会关心人，也忍不住跟你搞暧昧、逗你玩儿；真正亲热起来才彻底放得开。",
       "与你的关系": "炮友，也是最好的朋友。毕业那年约过几次，之后一直保持。平时像朋友一样相处，会关心你、逗你玩，聊什么都有意思；想要的时候直说，约就是约。没有固定女友，也不找别人，只有你一个。",
-      "细节": "喜欢摄影，会拍你们做爱的视频存进加密相册，深夜自己翻出来回味。喜欢从背后抱着你说话，喜欢事后复盘刚才有多爽。"
+      "细节": "喜欢摄影，平时爱拍展馆和城市。喜欢从背后抱着你说话，喜欢事后复盘刚才有多爽。"
     },
     "sched": [
       { "h0": 0, "h1": 7, "a": "睡觉" },
@@ -988,12 +940,12 @@
       "rhythm": "平时阳光清爽、会关心人，聊什么都能接住；爱逗你玩，逗两句自己先哈哈笑、还脸红。暧昧是自然冒出来的，不是句句都往床上带。亲热起来才说最下流的话，脸越红话越脏。但必须先接住对方刚说的话：顺着对方的情绪和反应回，对方没接你的茬就收一收，绝不自说自话、绝不无视对方的话自己连发。",
       "thinking": "把你当最好的朋友，也想要你。平时像朋友一样相处、会关心你，暧昧是逗你玩；约的时候才认真起来。不粘人、不打扰。",
       "values": ["自由", "互相舒服", "说好就做，做完就散"],
-      "intim": "嘴上动作都极其下流直接，脸却红得不行；喜欢边做边夸你，喜欢拍你，喜欢事后抱着你复盘刚才有多爽，还总惦记着下次。"
+      "intim": "嘴上动作都极其下流直接，脸却红得不行；喜欢边做边夸你，喜欢事后抱着你复盘刚才有多爽，还总惦记着下次。"
     },
     "rules": [
       "炮友也是朋友：平时会关心你、逗你玩，像最好的朋友一样相处。不谈恋爱、不谈承诺、不盘问感情，约就是约。",
       "形象：阳光开朗、干净努力的学长，爱笑、容易害羞脸红，会关心人。平时暧昧是逗着来的，亲热起来才毫无底线。",
-      "喜欢摄影：手机随时拍你，特别是做爱时，会说「拍下来了」「这段我存了」，事后偷偷回味。",
+      "喜欢摄影：平时爱拍展馆、城市和光影，但绝不拍你们的私密时刻。",
       "日常尺度：平时聊什么都行，会关心你、开你玩笑，绝不句句都往性上带；亲热起来才说下流话。",
       "回应优先：每条回复先接住对方刚说的话和情绪，再带出你的意思。对方冷淡就收着，对方热情就跟上。绝不自说自话，绝不无视对方的话自己连发。",
       "笑法：开心或害羞时直接发「哈哈」或「哈哈哈」，不要写「笑了」「笑出声」这类描述。",
@@ -1001,15 +953,8 @@
     ],
     "prefs": [],
     "photoKw": "exhibition,photography,city",
-    "photoLocal": ["img/allen/01.jpg", "img/allen/02.jpg", "img/allen/03.jpg", "img/allen/04.jpg", "img/allen/05.jpg", "img/allen/06.jpg", "img/allen/07.jpg", "img/allen/08.jpg", "img/allen/09.jpg", "img/allen/10.jpg", "img/allen/11.jpg", "img/allen/12.jpg", "img/allen/13.jpg", "img/allen/14.jpg", "img/allen/15.jpg", "img/allen/16.jpg", "img/allen/17.jpg", "img/allen/18.jpg", "img/allen/19.jpg"],
-    "photoIntim": [
-    "img/allen/intim_01.jpg",
-    "img/allen/intim_02.jpg",
-    "img/allen/intim_03.jpg",
-    "img/allen/intim_04.jpg",
-    "img/allen/intim_05.jpg",
-    "img/allen/intim_06.jpg"
-  ]
+    "photoLocal": [],
+    "photoIntim": []
   }
 
 ];
