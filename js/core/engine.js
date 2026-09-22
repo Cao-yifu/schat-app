@@ -488,11 +488,15 @@
           baseURL: st.ttsBaseURL,
           apiKey: st.ttsKey,
           model: st.ttsModel || 'FunAudioLLM/CosyVoice2-0.5B',
-          voice: (persona.ttsVoice || (pref && pref.name) || st.ttsVoice) || 'FunAudioLLM/CosyVoice2-0.5B:alex',
+          voice: (persona.ttsVoice || (pref && pref.name) || st.ttsVoice) || 'fishaudio/fish-speech-1.5:alex',
           instruction: persona.ttsInstruct || st.ttsInstruct || '',
           text: msg.text,
-        }).then(function (blob) {
-          if (!blob) return;
+        }).then(function (res) {
+          if (!res || res.err) {
+            engine.hooks.onSys(loverId, '语音合成失败：' + (res && res.err ? res.err : '未知错误'));
+            return;
+          }
+          const blob = res.blob;
           msg.audioUrl = URL.createObjectURL(blob);
           return store.updateMsg(loverId, msg).catch(function () {}).then(function () {
             engine.hooks.onMsg(loverId, msg, 'update');
