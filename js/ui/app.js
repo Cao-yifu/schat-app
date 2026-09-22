@@ -38,6 +38,17 @@
     const pages = document.querySelectorAll('.page');
     for (const pg of pages) pg.classList.remove('active');
     $(id).classList.add('active');
+    const tb = $('tabbar');
+    if (tb) {
+      const isTab = id === 'page-home' || id === 'page-roles' || id === 'page-moments' || id === 'page-set';
+      tb.classList.toggle('show', isTab);
+      document.body.classList.toggle('tabs-on', isTab);
+      tb.querySelectorAll('.tab').forEach(function (t) {
+        t.classList.toggle('on', t.getAttribute('data-tab') === id);
+      });
+    }
+    if (id === 'page-moments') { renderMoments(); if (G.moments) G.moments.autoTick(); }
+    if (id === 'page-roles') renderRoles();
   }
 
   function sheet(id, show) {
@@ -113,9 +124,6 @@
         : esc('[图片]');
     } else {
       inner += esc(msg.text || '');
-    }
-    if (msg.audioUrl) {
-      inner += '<audio controls preload="none" src="' + msg.audioUrl + '" style="max-width:230px;height:32px;margin-top:6px"></audio>';
     }
     const ava = me
       ? '<div class="ava"><img src="' + MY_AVATAR + '" alt=""></div>'
@@ -292,60 +300,6 @@
     engine.send(currentLover, text, q);
   }
 
-  /* ---------- 云端音色库（试听 = 直接调云接口播放） ---------- */
-  /* 火山豆包语音大模型 2.0 音色（用户选定 8 款；ID 为原生 voice_type，
-   * 若试听报 Invalid voice，用音色库页面上的真实 ID 替换即可） */
-  const CLOUD_VOICES = [
-    { id: 'zh_male_wenrouxuezhang_uranus_bigtts', label: '徐朗 · 温柔学长2.0' },
-    { id: 'zh_male_wenrounanyou_uranus_bigtts', label: '越哥 · 温柔男友2.0' },
-    { id: 'zh_male_naiqixiaosheng_uranus_bigtts', label: '小泽 · 奶气小生2.0' },
-    { id: 'zh_male_lenglianxiongzhang_uranus_bigtts', label: '梁川 · 冷脸兄长2.0' },
-    { id: 'zh_male_jingyingqingnian_uranus_bigtts', label: '孙铎 · 精英青年2.0' },
-    { id: 'zh_male_mengdongqingnian_uranus_bigtts', label: '乐恩 · 懵懂青年2.0' },
-    { id: 'zh_male_qinqieqingnian_uranus_bigtts', label: 'Allen · 亲切青年2.0' },
-    { id: 'zh_male_guangzhoudege_uranus_bigtts', label: '阿杰 · 广州德哥' },
-  ];
-  const VOICE_SAMPLE = '是我。想我了吗？今晚想见你。';
-  function playCloud(text, voiceId, key, baseURL, model, onErr, provider) {
-    if (!key) { if (onErr) onErr('先在上方填语音 Key 才能试听'); return; }
-    const synth = (provider === 'siliconflow')
-      ? api.tts({
-          baseURL: baseURL,
-          apiKey: key,
-          model: model || 'FunAudioLLM/CosyVoice2-0.5B',
-          voice: voiceId,
-          instruction: '用自然放松的日常口语语气说，不要播音腔，像发微信语音一样随意',
-          text: text,
-        })
-      : api.ttsVolc({ apiKey: key, voice: voiceId, text: text });
-    synth.then(function (res) {
-      if (!res || res.err) { if (onErr) onErr('试听失败：' + (res && res.err ? res.err : '接口无响应')); return; }
-      const blob = res.blob;
-      const url = URL.createObjectURL(blob);
-      const a = new Audio(url);
-      a.onended = function () { URL.revokeObjectURL(url); };
-      a.play().catch(function () { /* 自动播放被拦截则无动作 */ });
-    });
-  }
-  function voiceRowsHtml() {
-    /* 每角色一个音色下拉（云端男声库） */
-    let h = '';
-    sync.list().forEach(function (p) {
-      let opts = '';
-      CLOUD_VOICES.forEach(function (v) {
-        opts += '<option value="' + esc(v.id) + '">' + esc(v.label) + '</option>';
-      });
-      h += '<div class="fld"><label>' + esc(p.name) + '</label>' +
-        '<select id="vsel_' + p.id + '" style="max-width:52%">' + opts + '</select></div>';
-    });
-    /* 音色库试听列表：一行一个男声，点试听直接云端合成播放 */
-    CLOUD_VOICES.forEach(function (v, i) {
-      h += '<div class="fld"><label>' + esc(v.label) + '</label>' +
-        '<button id="vtry_' + i + '" style="margin-left:6px;padding:4px 12px;border-radius:12px;border:1px solid #d8d8d8;background:#fff;font-size:12px">▶ 试听</button></div>';
-    });
-    return h;
-  }
-
   /* 引擎挂钩 */
   engine.hooks.onMsg = function (loverId, msg, kind) {
     if (loverId === currentLover && lastRenderKey === loverId) {
@@ -365,6 +319,176 @@
     toast(text);
     if (loverId !== currentLover) renderList();
   };
+
+  /* ---------- 朋友圈 ---------- */
+  const M = G.moments;
+  let composeImg = null;
+
+  function renderRoles() {
+    const box = $('rolesGrid');
+    if (!box) return;
+    box.innerHTML = '';
+    sync.list().forEach(function (p) {
+      const c = document.createElement('div');
+      c.className = 'rolecard';
+      c.innerHTML = avatarHtml(p, 'avatar') + '<div class="nm">' + esc(p.nickname || p.name) + '</div>';
+      c.addEventListener('click', function () { openProfile(p.id); });
+      box.appendChild(c);
+    });
+  }
+
+  function momentDom(m, personas) {
+    const isMe = m.pid === 'me';
+    const p = isMe ? null : personas.find(function (x) { return x.id === m.pid; });
+    const post = document.createElement('div');
+    post.className = 'mpost';
+    const hd = document.createElement('div');
+    hd.className = 'mhd';
+    hd.innerHTML = (isMe
+      ? '<div class="mava"><img src="' + MY_AVATAR + '" alt=""></div>'
+      : avatarHtml(p, 'mava')) +
+      '<div class="mnm">' + esc(isMe ? '我' : (p ? (p.nickname || p.name) : 'TA')) + '</div>' +
+      '<div class="mtime">' + esc(M.fmtAgo(m.t)) + '</div>';
+    post.appendChild(hd);
+    if (m.text) {
+      const tx = document.createElement('div');
+      tx.className = 'mtxt';
+      tx.textContent = m.text;
+      post.appendChild(tx);
+    }
+    if (m.img) {
+      const imwrap = document.createElement('div');
+      imwrap.className = 'mimg';
+      const img = document.createElement('img');
+      img.src = m.img;
+      img.alt = '照片';
+      imwrap.appendChild(img);
+      post.appendChild(imwrap);
+    }
+    const mbar = document.createElement('div');
+    mbar.className = 'mbar';
+    const lk = document.createElement('div');
+    lk.className = 'act' + (m.liked ? ' liked' : '');
+    lk.innerHTML = '<span>' + (m.liked ? '♥' : '♡') + '</span><span>' + (m.liked ? '取消' : '赞') + '</span>';
+    lk.addEventListener('click', function () {
+      M.toggleLike(m).then(renderMoments);
+    });
+    const cm = document.createElement('div');
+    cm.className = 'act';
+    cm.innerHTML = '<span>💬</span><span>评论</span>';
+    cm.addEventListener('click', function () {
+      const ip = post.querySelector('.cmtinput');
+      if (ip) ip.classList.toggle('show');
+    });
+    mbar.appendChild(lk);
+    mbar.appendChild(cm);
+    post.appendChild(mbar);
+    const likeNames = m.liked ? (m.likes || []).concat(['我']) : (m.likes || []);
+    if (likeNames.length || (m.comments || []).length) {
+      const foot = document.createElement('div');
+      foot.className = 'mfoot';
+      if (likeNames.length) {
+        const ll = document.createElement('div');
+        ll.className = 'likeline';
+        ll.innerHTML = '<span class="lk">♥</span><span>' + esc(likeNames.join('、')) + '</span>';
+        ll.addEventListener('click', function () { M.toggleLike(m).then(renderMoments); });
+        foot.appendChild(ll);
+      }
+      (m.comments || []).forEach(function (c) {
+        const cl = document.createElement('div');
+        cl.className = 'cmt';
+        cl.innerHTML = '<b>' + esc(c.who) + '</b>' + esc(c.text);
+        foot.appendChild(cl);
+      });
+      post.appendChild(foot);
+    }
+    const ip = document.createElement('div');
+    ip.className = 'cmtinput';
+    const ipt = document.createElement('input');
+    ipt.type = 'text';
+    ipt.placeholder = '评论…';
+    const sbtn = document.createElement('button');
+    sbtn.textContent = '发送';
+    const send = function () {
+      const t = ipt.value.trim();
+      if (!t) return;
+      m.comments = m.comments || [];
+      m.comments.push({ who: '我', text: t });
+      M.update(m).then(renderMoments);
+      ipt.value = '';
+      if (!isMe && p) M.replyComment(m, t);
+    };
+    sbtn.addEventListener('click', send);
+    ipt.addEventListener('keydown', function (e) { if (e.key === 'Enter') send(); });
+    ip.appendChild(ipt);
+    ip.appendChild(sbtn);
+    post.appendChild(ip);
+    if (!isMe && p) {
+      const nm = post.querySelector('.mnm');
+      nm.classList.add('tappable');
+      nm.addEventListener('click', function () { openProfile(p.id); });
+    }
+    return post;
+  }
+
+  function renderMoments() {
+    const box = $('momentsList');
+    if (!box) return Promise.resolve();
+    return M.list().then(function (arr) {
+      box.innerHTML = '';
+      if (!arr.length) {
+        box.innerHTML = '<div class="empty"><div class="big">🫧</div>TA们还没有发过动态<br><br><button class="gbtn" id="mComposeFirst">＋ 发第一条</button></div>';
+        const b = $('mComposeFirst');
+        if (b) b.addEventListener('click', openCompose);
+        return;
+      }
+      const personas = sync.list();
+      arr.slice().sort(function (a, b) { return b.t - a.t; }).forEach(function (m) {
+        box.appendChild(momentDom(m, personas));
+      });
+    });
+  }
+  ui.renderMoments = renderMoments;
+
+  function openCompose() {
+    composeImg = null;
+    $('composeText').value = '';
+    $('composeImgPrev').style.display = 'none';
+    $('maskCompose').classList.add('show');
+    $('sheetCompose').classList.add('show');
+  }
+  function closeCompose() {
+    $('maskCompose').classList.remove('show');
+    $('sheetCompose').classList.remove('show');
+  }
+
+  function bindMoments() {
+    $('momentsCamBtn').addEventListener('click', openCompose);
+    $('maskCompose').addEventListener('click', closeCompose);
+    $('composePhotoBtn').addEventListener('click', function () { $('composeFile').click(); });
+    $('composeFile').addEventListener('change', function () {
+      const f = this.files && this.files[0];
+      if (!f) return;
+      if (f.size > 2 * 1024 * 1024) { toast('照片别超过 2MB'); return; }
+      const rd = new FileReader();
+      rd.onload = function () {
+        composeImg = rd.result;
+        $('composeImg').src = composeImg;
+        $('composeImgPrev').style.display = 'block';
+      };
+      rd.readAsDataURL(f);
+    });
+    $('composePubBtn').addEventListener('click', function () {
+      const text = $('composeText').value.trim();
+      if (!text && !composeImg) { toast('写点什么再发'); return; }
+      M.postMine(text, composeImg).then(function () {
+        closeCompose();
+        showPage('page-moments');
+        renderMoments();
+        toast('已发布');
+      });
+    });
+  }
 
   /* ---------- 聊天页事件 ---------- */
   function bindChatEvents() {
@@ -523,19 +647,6 @@
         fld('温度 temperature', 'setTemp', st.temperature, '0~1.5，越小越稳') +
         '</div></div>' +
 
-        '<div class="card"><div class="ct">语音（云端音色 · 明确指令触发 · 每次最多3条）</div><div class="cb">' +
-        switchRow('ttsOn', '语音回复', '仅明确指令触发（用语音回我 / 想听你声音），一次最多 3 条，用尽自动停', st.ttsOn !== false) +
-        '<div class="fld"><label>语音平台</label><select id="setTtsProvider">' +
-        '<option value="volcano"' + ((st.ttsProvider || 'volcano') === 'volcano' ? ' selected' : '') + '>火山豆包语音（推荐 · 超写实中文男声）</option>' +
-        '<option value="siliconflow"' + (st.ttsProvider === 'siliconflow' ? ' selected' : '') + '>硅基流动 CosyVoice2（免费）</option>' +
-        '</select><div class="val">火山语音用「语音技术」的 API Key（方舟 Key 不通用）；硅基流动用 sk- Key</div></div>' +
-        fld('语音 Key', 'setTtsKey', st.ttsKey, '火山控制台 → 语音技术 → API Key 管理（X-Api-Key）', 'password') +
-        '<div id="rowTtsBase">' + fld('语音接口地址', 'setTtsBase', st.ttsBaseURL, '仅硅基流动用；OpenAI /audio/speech 兼容') + '</div>' +
-        '<div id="rowTtsModel">' + fld('语音模型', 'setTtsModel', st.ttsModel, '仅硅基流动用') + '</div>' +
-        '<div style="font-size:12px;color:#8a8a8a;margin:4px 0">每个角色绑定一个音色，下方点▶试听在线合成。</div>' +
-        voiceRowsHtml() +
-        '</div></div>' +
-
         '<div class="card"><div class="ct">回复性格</div><div class="cb">' +
         fld('最长回复字数（硬截断）', 'setMax', st.maxChars, '默认 400；平时 TA 只回 1-2 句，只有你要细节才写长') +
         fld('打字速度（字/秒）', 'setCps', st.cps, '默认 10') +
@@ -575,42 +686,6 @@
       $('setKey').addEventListener('change', function () { save({ apiKey: this.value.trim() }, '已保存'); });
       $('setModel').addEventListener('change', function () { save({ model: this.value.trim() }, '已保存'); });
       $('setTemp').addEventListener('change', function () { save({ temperature: num(this.value, 0.8, 0, 1.5) }, '已保存'); });
-      $('sw_ttsOn').addEventListener('change', function () { save({ ttsOn: this.checked }, '已保存'); });
-      $('setTtsBase').addEventListener('change', function () { save({ ttsBaseURL: this.value.trim() }, '已保存'); });
-      $('setTtsKey').addEventListener('change', function () { save({ ttsKey: this.value.trim() }, '已保存'); });
-      $('setTtsModel').addEventListener('change', function () { save({ ttsModel: this.value.trim() }, '已保存'); });
-      const toggleTtsRows = function () {
-        const volc = ($('setTtsProvider').value || 'volcano') === 'volcano';
-        const b = $('rowTtsBase'); if (b) b.style.display = volc ? 'none' : '';
-        const m = $('rowTtsModel'); if (m) m.style.display = volc ? 'none' : '';
-      };
-      $('setTtsProvider').addEventListener('change', function () {
-        save({ ttsProvider: this.value }, '平台已切换');
-        toggleTtsRows();
-      });
-      toggleTtsRows();
-
-      /* 每角色音色绑定（云端音色库）+ 音色库试听 */
-      sync.list().forEach(function (p) {
-        store.get('voicePref_' + p.id, null).then(function (pref) {
-          const sel = $('vsel_' + p.id);
-          if (!sel) return;
-          sel.value = (pref && pref.name) || (p.ttsVoice || '');
-        });
-        $('vsel_' + p.id).addEventListener('change', function () {
-          store.set('voicePref_' + p.id, { name: this.value }).then(function () { toast('已保存：' + p.name); });
-        });
-      });
-      CLOUD_VOICES.forEach(function (v, i) {
-        $('vtry_' + i).addEventListener('click', function () {
-          const key = $('setTtsKey').value.trim();
-          const base = $('setTtsBase').value.trim();
-          const model = $('setTtsModel').value.trim();
-          const provider = ($('setTtsProvider') && $('setTtsProvider').value) || 'volcano';
-          toast('云端合成中…');
-          playCloud(VOICE_SAMPLE, v.id, key, base, model, function (e) { toast(e); }, provider);
-        });
-      });
       $('setMax').addEventListener('change', function () { save({ maxChars: num(this.value, 400, 50, 400) }, '已保存'); });
       $('setCps').addEventListener('change', function () { save({ cps: num(this.value, 10, 2, 40) }, '已保存'); });
       $('setFollowSec').addEventListener('change', function () { save({ followUpSec: num(this.value, 30, 5, 300) }, '已保存'); });
@@ -664,14 +739,33 @@
       $('onboard').classList.remove('show');
       store.set('onboarded', 1);
     });
+    /* 底部标签栏：聊天 / 角色 / 朋友圈 / 设置 */
+    const tb = $('tabbar');
+    if (tb) {
+      tb.querySelectorAll('.tab').forEach(function (t) {
+        t.addEventListener('click', function () {
+          const id = t.getAttribute('data-tab');
+          if (id === 'page-set') buildSettings();
+          if (id === 'page-home') { showPage(id); renderList(); }
+          else showPage(id);
+        });
+      });
+    }
   }
 
   ui.bootUi = function () {
     bindGlobal();
     bindChatEvents();
+    bindMoments();
     renderList();
     store.get('onboarded', 0).then(function (v) {
       if (!v) $('onboard').classList.add('show');
     });
+    /* 朋友圈：首次播种 + 定时自动发动态 */
+    if (G.moments) {
+      G.moments.seed().then(function () {});
+      G.moments.autoTick().catch(function () {});
+      setInterval(function () { G.moments.autoTick().catch(function () {}); }, 10 * 60000);
+    }
   };
 })();
