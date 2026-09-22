@@ -382,41 +382,39 @@
     return Promise.all(jobs);
   }
 
-  /* 30 秒追问（仅一条）——走 API 生成，保证追问接得上上文 */
+  /* 30 秒追问（仅一条）——程序化话术池轮换，零 API、零延迟、绝不自问自答不开新话题 */
+  const FOLLOW_POOL = ['怎么不说话了', '怎么了？', '你在想什么？', '没想好吗？', '睡着了？', '人呢'];
+  let followIdx = 0;
   function armFollowUp(loverId, persona, st) {
     clearTimeout(followTimers[loverId]);
-    const armedAt = Date.now();
     followTimers[loverId] = setTimeout(function () {
       if (!sync.get(loverId)) return; // 角色已删除：追问别再把它的聊天记录复活
       store.msgs(loverId).then(function (arr) {
         const last = arr[arr.length - 1];
         if (!last || last.role !== 'you') return; // 用户已经回过话了
         if (running[loverId]) return;
-        enqueue(loverId, function () {
-          const sec = Math.round((Date.now() - armedAt) / 1000);
-          const extra = '对方已经' + sec + '秒没回你上一条消息。你有点在意，用你的口吻补一条简短的追问，就一条，1-2句，催他回答你刚才问的事。绝不能自问自答，绝不能替你上一条消息做解释或续写，绝不能开新话题。';
-          return streamReply(loverId, persona, { extra: extra, follow: true })
-            .catch(function (e) { console.warn('[追问失败]', e && e.message); });
-        });
+        const text = FOLLOW_POOL[followIdx % FOLLOW_POOL.length];
+        followIdx += 1;
+        appendYou(loverId, { id: util.uid(), role: 'you', type: 'text', text: text, ts: Date.now() });
       });
     }, (st.followUpSec || 30) * 1000);
   }
   function cancelFollowUp(loverId) { clearTimeout(followTimers[loverId]); }
 
-  /* 偶尔发生活照 */
+  /* 偶尔主动发一张自拍（嵌入式本地池，零网图） */
   function maybePhoto(loverId, persona) {
     return engine.getSettings().then(function (st) {
       if (!st.photos) return;
-      const useLocal = !!(persona.photoLocal && persona.photoLocal.length);
-      if (!useLocal && !persona.photoKw) return;
+      const lib = (typeof window !== 'undefined' && window.SCHAT && window.SCHAT.SCHAT_PHOTOS) || (typeof globalThis !== 'undefined' && globalThis.SCHAT && globalThis.SCHAT.SCHAT_PHOTOS) || null;
+      const pool = lib && lib[persona.name] && lib[persona.name].selfie;
+      if (!pool || !pool.length) return;
       return sync.lastPhotoAt(loverId).then(function (last) {
         if (Date.now() - last < 10 * 60 * 1000) return;
         if (Math.random() > 0.16) return;
-        const p = useLocal ? photos.fetchLocal(persona.photoLocal) : photos.fetchOne(persona.photoKw);
-        return p.then(function (dataUrl) {
-          if (!dataUrl) return;
+        return store.msgs(loverId).then(function (msgs) {
+          const n = msgs.filter(function (m) { return m.type === 'image'; }).length;
           return sync.setLastPhotoAt(loverId, Date.now()).then(function () {
-            const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: dataUrl, ts: Date.now() };
+            const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: pool[n % pool.length], ts: Date.now() };
             return appendYou(loverId, msg);
           });
         });
@@ -424,23 +422,29 @@
     }).catch(function () {});
   }
 
-  /* 对方明确要照片：立刻调取一张发过去（私密词→私密池；否则普通池；无本地相册用图库） */
+  /* 对方明确要照片：立刻从嵌入式本地池取一张发过去（零网图）
+   * 私密词→该角色私密照池；腿→公共腿；手→公共手；自拍/普通照片→该角色自拍池 */
   const PHOTO_REQ_RE = /(照片|自拍|拍给我|拍一张|发张|来张|发图|看看你的腿|看看腿|看看你的手|看看手|看看你的脸|看看你长|让我看看你|想看看你|看看你)/;
-  const PHOTO_INTIM_RE = /(私密照|裸照|裸体|腿照|大腿|那话儿|你的下面|看看下面|下面给我|大不大|硬不硬|勃起|鸡巴|几把|尺寸|脱了|脱光|脱给我|露给我|色一点|骚一点|来点刺激)/;
-  function sendPhotoNow(loverId, persona, intim) {
+  const PHOTO_INTIM_RE = /(私密照|裸照|裸体|那话儿|你的下面|看看下面|下面给我|大不大|硬不硬|勃起|鸡巴|几把|尺寸|脱了|脱光|脱给我|露给我|色一点|骚一点|来点刺激)/;
+  const PHOTO_LEG_RE = /(看看腿|看腿|腿照|给我看.*腿|你的腿|大腿|小腿|长腿)/;
+  const PHOTO_HAND_RE = /(看看手|看手|手照|给我看.*手|你的手)/;
+  function sendPhotoNow(loverId, persona, text) {
     return engine.getSettings().then(function (st) {
       if (!st.photos) return;
-      const intimPool = intim && persona.photoIntim && persona.photoIntim.length ? persona.photoIntim : null;
-      const useLocal = intimPool || (persona.photoLocal && persona.photoLocal.length);
-      if (!useLocal && !persona.photoKw) return;
+      const lib = (typeof window !== 'undefined' && window.SCHAT && window.SCHAT.SCHAT_PHOTOS) || (typeof globalThis !== 'undefined' && globalThis.SCHAT && globalThis.SCHAT.SCHAT_PHOTOS) || null;
+      if (!lib) return;
+      let pool = null;
+      if (PHOTO_INTIM_RE.test(text)) pool = (lib[persona.name] && lib[persona.name].priv) || [];
+      else if (PHOTO_LEG_RE.test(text)) pool = lib['_公共腿'] || [];
+      else if (PHOTO_HAND_RE.test(text)) pool = lib['_公共手'] || [];
+      else pool = (lib[persona.name] && lib[persona.name].selfie) || [];
+      if (!pool.length) return;
       return sync.lastPhotoAt(loverId).then(function (last) {
         if (Date.now() - last < 20 * 1000) return; // 20 秒内刚发过，不再连发
-        const p = intimPool ? photos.fetchLocal(intimPool)
-          : (useLocal ? photos.fetchLocal(persona.photoLocal) : photos.fetchOne(persona.photoKw));
-        return p.then(function (dataUrl) {
-          if (!dataUrl) return;
+        return store.msgs(loverId).then(function (msgs) {
+          const n = msgs.filter(function (m) { return m.type === 'image'; }).length;
           return sync.setLastPhotoAt(loverId, Date.now()).then(function () {
-            const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: dataUrl, ts: Date.now() };
+            const msg = { id: util.uid(), role: 'you', type: 'image', text: '', src: pool[n % pool.length], ts: Date.now() };
             return appendYou(loverId, msg);
           });
         });
@@ -491,13 +495,12 @@
         });
       }
       const msg = { id: util.uid(), role: 'me', type: 'text', text: text, ts: Date.now(), quote: quote || null };
-      const wantPhoto = PHOTO_REQ_RE.test(text) || PHOTO_INTIM_RE.test(text);
-      const wantIntim = PHOTO_INTIM_RE.test(text);
+      const wantPhoto = PHOTO_REQ_RE.test(text) || PHOTO_INTIM_RE.test(text) || PHOTO_LEG_RE.test(text) || PHOTO_HAND_RE.test(text);
       return store.appendMsg(loverId, msg).then(function () {
         engine.hooks.onMsg(loverId, msg, 'append');
         if (wantPhoto) {
-          // 明确要照片：先自动发一张（私密词发私密池），再让 TA 文字回应
-          return sendPhotoNow(loverId, persona, wantIntim).then(function () {
+          // 明确要照片：先自动发一张（本地嵌入式池），再让 TA 文字回应
+          return sendPhotoNow(loverId, persona, text).then(function () {
             return streamReply(loverId, persona, {}).catch(handleErr(loverId));
           });
         }
