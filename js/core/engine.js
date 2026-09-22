@@ -317,6 +317,7 @@
                 if (!state.msg) {
                   state.msg = { id: util.uid(), role: 'you', type: 'text', text: state.released, ts: Date.now() };
                   if (opts.follow) state.msg.follow = true;
+                  if (opts.sexChain) state.msg.sexChain = true;
                   if (ctx.extra && ctx.extra.indexOf('【本地素材参考】') >= 0) state.msg.intim = true;
                   store.appendMsg(loverId, state.msg).then(function () {
                     engine.hooks.onMsg(loverId, state.msg, 'append');
@@ -362,6 +363,7 @@
             if (!text) { state.result = Promise.resolve(''); return state.result; }
             const msg = { id: util.uid(), role: 'you', type: 'text', text: text, ts: Date.now() };
             if (opts.follow) msg.follow = true;
+            if (opts.sexChain) msg.sexChain = true;
             state.result = appendYou(loverId, msg).then(function () {
               return afterReply(loverId, persona, msg, opts);
             }).then(function () { return text; });
@@ -414,7 +416,11 @@
   function afterReply(loverId, persona, msg, opts) {
     const jobs = [];
     jobs.push(engine.getSettings().then(function (st) {
-      if (st.followUp && !opts.noFollow && !opts.follow) armFollowUp(loverId, persona, st);
+      if (!st.followUp || opts.noFollow) return;
+      store.get('scene_' + loverId, null).then(function (sc) {
+        if (sc && sc.mode === 'sex') armSexChain(loverId, persona, st);
+        else if (!opts.follow) armFollowUp(loverId, persona, st);
+      });
     }));
     jobs.push(maybePhoto(loverId, persona));
     jobs.push(engine.getSettings().then(function (st) {
@@ -453,7 +459,35 @@
       });
     }, (st.followUpSec || 30) * 1000);
   }
-  function cancelFollowUp(loverId) { clearTimeout(followTimers[loverId]); }
+  function cancelFollowUp(loverId) { clearTimeout(followTimers[loverId]); clearTimeout(sexTimers[loverId]); }
+
+  /* 做爱期间自说自话：6 秒未回，角色仿佛看着你的反应持续输出 */
+  const sexTimers = {};
+  function armSexChain(loverId, persona, st) {
+    clearTimeout(sexTimers[loverId]);
+    sexTimers[loverId] = setTimeout(function () {
+      if (!sync.get(loverId)) return;
+      store.get('scene_' + loverId, null).then(function (sc) {
+        if (!sc || sc.mode !== 'sex') return; // 场景已冷却，不再连发
+        store.msgs(loverId).then(function (arr) {
+          const last = arr[arr.length - 1];
+          if (!last || last.role !== 'you') return; // 用户回复了
+          if (running[loverId]) return;
+          let chainN = 0;
+          for (let i = arr.length - 1; i >= 0; i--) {
+            if (arr[i].sexChain) chainN++;
+            else break;
+          }
+          if (chainN >= 12) return; // 最多连发 12 条，防止失控
+          enqueue(loverId, function () {
+            const extra = '（做爱中）他还没回你，但你看得见他的反应：他喘得厉害、身体绷紧、下面绞着你，偶尔漏出半句呻吟。接着往下输出，就一两句，接着你刚才的动作和话继续，可以更狠一点，仿佛在回应他的反应。';
+            return streamReply(loverId, persona, { extra: extra, follow: true, sexChain: true })
+              .catch(function (e) { console.warn('[做爱连发失败]', e && e.message); });
+          });
+        });
+      });
+    }, 6000);
+  }
 
   /* 抽签袋：随机不重复抽取，抽完一轮再重新洗牌 */
   /* 照片上下文过滤：时段/室内外/角度（与角色当前时空一致） */
