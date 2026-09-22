@@ -116,7 +116,7 @@
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + opts.apiKey },
       body: JSON.stringify({
         model: opts.model,
-        input: String(opts.text || '').slice(0, 500),
+        input: (opts.instruction ? String(opts.instruction) + '<|endofprompt|>' : '') + String(opts.text || '').slice(0, 500),
         voice: opts.voice,
         response_format: 'mp3',
       }),
