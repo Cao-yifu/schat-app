@@ -293,12 +293,11 @@
   }
 
   /* ---------- 云端音色库（试听 = 直接调云接口播放） ---------- */
-  /* CosyVoice2 官方 4 款男声（SiliconFlow 系统预置，实测存在） */
+  /* CosyVoice2-0.5B 实测可用男声（2026-09 用真实 Key 逐一验证；david 与 james 等已淘汰） */
   const CLOUD_VOICES = [
-    { id: 'fishaudio/fish-speech-1.5:alex', label: 'Alex · 沉稳男声' },
-    { id: 'fishaudio/fish-speech-1.5:benjamin', label: 'Benjamin · 低沉男声' },
-    { id: 'fishaudio/fish-speech-1.5:charles', label: 'Charles · 磁性男声' },
-    { id: 'fishaudio/fish-speech-1.5:david', label: 'David · 欢快男声' }
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:alex', label: 'Alex · 沉稳青年' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:benjamin', label: 'Benjamin · 温柔暖男' },
+    { id: 'FunAudioLLM/CosyVoice2-0.5B:charles', label: 'Charles · 磁性低沉' },
   ];
   const VOICE_SAMPLE = '是我。想我了吗？今晚想见你。';
   function playCloud(text, voiceId, key, baseURL, model, onErr) {
