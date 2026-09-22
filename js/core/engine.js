@@ -34,8 +34,8 @@
     intimLib: true,       // 亲密素材参考
     ttsOn: true,          // 语音回复开关（仅明确指令触发）
     ttsBaseURL: 'https://api.siliconflow.cn/v1',
-    ttsModel: 'fishaudio/fish-speech-1.5',
-    ttsVoice: 'fishaudio/fish-speech-1.5:alex',
+    ttsModel: 'FunAudioLLM/CosyVoice2-0.5B',
+    ttsVoice: 'FunAudioLLM/CosyVoice2-0.5B:alex',
     ttsInstruct: '用自然放松的日常口语语气说，不要播音腔，像发微信语音一样随意',
   };
   let settingsCache = null;
@@ -43,8 +43,8 @@
     if (settingsCache) return Promise.resolve(settingsCache);
     return store.get('settings', {}).then(function (s) {
       settingsCache = Object.assign({}, engine.DEFAULTS, s || {});
-      /* 语音设置迁移：旧版 CosyVoice/james 已废弃，自动切到 fish-speech-1.5 */
-      if (/CosyVoice|james/i.test(settingsCache.ttsModel + ' ' + settingsCache.ttsVoice)) {
+      /* 语音设置迁移：旧版 fish-speech/james/david 不可用，自动切到 CosyVoice2 可用音色 */
+      if (/fish|james|david/i.test(settingsCache.ttsModel + ' ' + settingsCache.ttsVoice)) {
         settingsCache.ttsModel = engine.DEFAULTS.ttsModel;
         settingsCache.ttsVoice = engine.DEFAULTS.ttsVoice;
         store.set('settings', settingsCache).catch(function () {});
@@ -488,7 +488,7 @@
           baseURL: st.ttsBaseURL,
           apiKey: st.ttsKey,
           model: st.ttsModel || 'FunAudioLLM/CosyVoice2-0.5B',
-          voice: (persona.ttsVoice || (pref && pref.name) || st.ttsVoice) || 'fishaudio/fish-speech-1.5:alex',
+          voice: (persona.ttsVoice || (pref && pref.name) || st.ttsVoice) || 'FunAudioLLM/CosyVoice2-0.5B:alex',
           instruction: persona.ttsInstruct || st.ttsInstruct || '',
           text: msg.text,
         }).then(function (res) {
