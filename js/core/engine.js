@@ -14,6 +14,7 @@
   const api = isNode ? require('./api.js') : G.api;
   const sync = isNode ? require('./sync.js') : G.sync;
   const photos = isNode ? require('./photos.js') : G.photos;
+  const cm = isNode ? require('./charmem.js') : G.charmem;
 
   const engine = {};
 
@@ -292,8 +293,16 @@
           }
           return ctx;
         }).then(function (ctx) {
-            const system = prompt.buildSystem(persona, ctx);
             return store.msgs(loverId).then(function (history) {
+          return Promise.all([
+            cm.inject({ pid: loverId, others: opts.mentioned || [], face: 'me', msgs: history }),
+            store.get('pextra:' + loverId, ''),
+          ]).then(function (mr) {
+          let more = '';
+          if (mr[0]) more += mr[0];
+          if (mr[1]) more += '\n【用户给你的补充人设】（高于默认人设；与故事板/记忆闭环冲突时，以后者为准）\n' + mr[1];
+          if (more) ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + more;
+          const system = prompt.buildSystem(persona, ctx);
           const messages = [{ role: 'system', content: system }].concat(prompt.buildHistory(history, st.historyN));
           const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
           const state = running[loverId] = {
@@ -392,6 +401,7 @@
               return waitFinalized(state);
             });
           });
+        });
         });
       });
       });
@@ -581,6 +591,16 @@
     };
   }
 
+  /* 消息里提到的角色（记忆检索 + 牵线：提到两个角色名 → 两人熟悉度 +1） */
+  function mentionedIds(text) {
+    const ids = [];
+    sync.list().forEach(function (p) {
+      if (text.indexOf(p.name) >= 0) ids.push(p.id);
+      else if (p.nickname && p.nickname !== p.name && text.indexOf(p.nickname) >= 0) ids.push(p.id);
+    });
+    return ids;
+  }
+
   /* 用户发消息（指令 + 普通聊天） */
   engine.send = function (loverId, text, quote) {
     const persona = sync.get(loverId);
@@ -596,7 +616,7 @@
           return sysMsg(loverId, '【时间快进】已快进到 ' + tp.nowText(fut));
         }).then(function () {
           const extra = '用户发来「' + text.slice(0, 20) + '」，你们刚才有一段时间没说话，时间已经过去了。按照你现在的作息状态，自然地重新开口（刚睡醒/刚下班/刚忙完），一两句即可。';
-          return streamReply(loverId, persona, { extra: extra }).catch(handleErr(loverId));
+          return streamReply(loverId, persona, { extra: extra, mentioned: mentionedIds(text) }).catch(handleErr(loverId));
         });
       }
       const rsM = text.match(/^\s*RS\s*[:：]?\s*([\s\S]+)$/i);
@@ -604,7 +624,7 @@
         return sync.addRS(loverId, rsM[1].trim()).then(function () {
           return sysMsg(loverId, '【RS】已永久写入设定');
         }).then(function () {
-          return streamReply(loverId, persona, {}).catch(handleErr(loverId));
+          return streamReply(loverId, persona, { mentioned: mentionedIds(text) }).catch(handleErr(loverId));
         });
       }
       const lsM = text.match(/^\s*LS\s*[:：]?\s*([\s\S]+)$/i);
@@ -612,20 +632,24 @@
         return sync.setLS(loverId, lsM[1].trim()).then(function () {
           return sysMsg(loverId, '【LS】本次会话已生效，清空聊天后失效');
         }).then(function () {
-          return streamReply(loverId, persona, {}).catch(handleErr(loverId));
+          return streamReply(loverId, persona, { mentioned: mentionedIds(text) }).catch(handleErr(loverId));
         });
       }
       const msg = { id: util.uid(), role: 'me', type: 'text', text: text, ts: Date.now(), quote: quote || null };
       const wantPhoto = PHOTO_REQ_RE.test(text) || PHOTO_INTIM_RE.test(text) || PHOTO_LEG_RE.test(text) || PHOTO_HAND_RE.test(text);
       return store.appendMsg(loverId, msg).then(function () {
         engine.hooks.onMsg(loverId, msg, 'append');
+        /* 记忆闭环：我↔TA 私聊入记忆库；提到两个角色 → 牵线（异步，不阻塞） */
+        const mentioned = mentionedIds(text);
+        if (mentioned.length >= 2) cm.matchmake(mentioned);
+        cm.observeMe(loverId);
         if (wantPhoto) {
           // 明确要照片：先自动发一张（本地嵌入式池，按当前时段/场景筛选），再让 TA 文字回应
           return sendPhotoNow(loverId, persona, text).then(function (sent) {
-            return streamReply(loverId, persona, sent ? { photoSent: true } : {}).catch(handleErr(loverId));
+            return streamReply(loverId, persona, sent ? { photoSent: true, mentioned: mentioned } : { mentioned: mentioned }).catch(handleErr(loverId));
           });
         }
-        return streamReply(loverId, persona, {}).catch(handleErr(loverId));
+        return streamReply(loverId, persona, { mentioned: mentioned }).catch(handleErr(loverId));
       });
     });
   };
@@ -685,6 +709,84 @@
       return Promise.all(jobs).catch(function (e) {
         console.warn('[lifeTick]', e && e.message); // 定时器入口必须兜住：一次失败不能变成未处理的 rejection
       });
+    });
+  };
+
+  /* ---------- 聊天图片：我发的图（本地压缩后的 dataURL，压缩失败不落库） ---------- */
+  engine.sendChatImage = function (loverId, src) {
+    const persona = sync.get(loverId);
+    if (!persona) return Promise.reject(new Error('角色不存在'));
+    if (!src || String(src).indexOf('data:image/') !== 0) return Promise.reject(new Error('图片无效'));
+    cancelFollowUp(loverId);
+    return enqueue(loverId, function () {
+      const msg = { id: util.uid(), role: 'me', type: 'image', text: '', src: src, ts: Date.now() };
+      return store.appendMsg(loverId, msg).then(function () {
+        engine.hooks.onMsg(loverId, msg, 'append');
+        return touchUnread(loverId);
+      });
+    });
+  };
+
+  /* ---------- 被踢反应（任务10）：到期私聊消息 + 记忆痕迹 ---------- */
+  function deliverKick(k) {
+    const persona = sync.get(k.pid);
+    if (!persona) return cm.removeKick(k.id);
+    if (k.style === '不问') {
+      return cm.meEntry(k.pid, '被你移出群聊「' + k.groupName + '」后没有来找你（冷处理，没问）', { layer: 'truth', level: 1, impact: 'mid' });
+    }
+    const pool = (cm.KICK_POOL[k.pid] && cm.KICK_POOL[k.pid][k.style]) || [];
+    const fallback = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+    return engine.getSettings().then(function (st) {
+      if (!String(st.apiKey || '').trim()) {
+        if (!fallback) return null;
+        const msg = { id: util.uid(), role: 'you', type: 'text', text: fallback, ts: Date.now(), kick: true };
+        return appendYou(k.pid, msg).then(function () {
+          return cm.meEntry(k.pid, '被你移出群聊「' + k.groupName + '」后主动来找你（' + k.style + '）：' + fallback, { layer: 'truth', level: 1, impact: 'mid' });
+        });
+      }
+      const why = k.situation === 'a' ? '你说了错话/做错了事' : (k.situation === 'b' ? '你本来就闹着要退群' : '无缘无故');
+      const extra = '你刚刚被你喜欢的人（群主）移出了群聊「' + k.groupName + '」。当时的情形：' + why +
+        '。你的反应基调：' + k.style + '。现在你主动给他发来第一条私聊消息：用你的口吻、按你的性格写，简短1-2句，直接说，别解释背景。';
+      return streamReply(k.pid, persona, { extra: extra, noFollow: true, noIntim: true }).then(function (text) {
+        return cm.meEntry(k.pid, '被你移出群聊「' + k.groupName + '」后主动来找你（' + k.style + '）：' + String(text || '').slice(0, 40), { layer: 'truth', level: 1, impact: 'mid' });
+      }).catch(function (err) {
+        if (err && err.noKey) return null;
+        if (!fallback) return null;
+        const msg = { id: util.uid(), role: 'you', type: 'text', text: fallback, ts: Date.now(), kick: true };
+        return appendYou(k.pid, msg);
+      });
+    });
+  }
+  /* 轮询被踢反应队列（app 启动 + 每分钟一次）：到期的逐条送出 */
+  engine.kickTick = function () {
+    return cm.pendingKicks().then(function (arr) {
+      if (!arr || !arr.length) return;
+      const now = Date.now();
+      const due = arr.filter(function (x) { return x.due <= now; });
+      if (!due.length) return;
+      return store.set('kickpend', arr.filter(function (x) { return x.due > now; })).then(function () {
+        let chain = Promise.resolve();
+        due.forEach(function (k) { chain = chain.then(function () { return deliverKick(k).then(function () { return cm.removeKick(k.id); }); }); });
+        return chain;
+      });
+    }).catch(function (e) { console.warn('[kickTick]', e && e.message); });
+  };
+
+  /* ---------- 供 privatewatch 复用的照片工具（抽签袋 + 时段过滤） ---------- */
+  engine.filterPool = filterPool;
+  engine.drawPhotoExact = function (key, pool) {
+    if (!pool || !pool.length) return Promise.resolve(null);
+    return store.get(key, null).then(function (bag) {
+      if (!bag || !bag.order || bag.order.length !== pool.length) {
+        bag = { order: shuffled(pool.length), pos: 0 };
+      }
+      if (bag.pos >= bag.order.length) {
+        bag.order = shuffled(pool.length);
+        bag.pos = 0;
+      }
+      const idx = bag.order[bag.pos];
+      bag.pos += 1;
+      return store.set(key, bag).then(function () { return pool[idx]; });
     });
   };
 
