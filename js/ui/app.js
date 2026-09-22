@@ -81,6 +81,7 @@
         const last = msgs[msgs.length - 1];
         const row = document.createElement('div');
         row.className = 'row';
+        row.setAttribute('data-name', item.name);
         row.innerHTML =
           avatarHtml(item, 'avatar') +
           '<div class="mid"><div class="nm">' + esc(item.nickname || item.name) + '</div>' +
@@ -95,11 +96,25 @@
       });
     })).then(function (rows) {
       for (const row of rows) box.appendChild(row);
+      applySearch();
     });
   }
   /* 流式打字期间每 100ms 一次 onMsg，列表重渲染必须防抖，否则每 tick 全员读库 */
   const refreshListSoon = util.debounce(function () { renderList(); }, 300);
   ui.refreshList = function () { renderList(); };
+
+  /* Aurora：首页搜索（纯视图层过滤，不改数据） */
+  function applySearch() {
+    const s = $('homeSearch');
+    const q = s ? s.value.trim().toLowerCase() : '';
+    const box = $('homeList');
+    if (!box) return;
+    for (const row of box.children) {
+      const nm = row.querySelector('.nm');
+      const txt = ((nm ? nm.textContent : '') + ' ' + (row.getAttribute('data-name') || '')).toLowerCase();
+      row.style.display = (!q || txt.indexOf(q) !== -1) ? '' : 'none';
+    }
+  }
 
   /* ---------- 聊天页 ---------- */
   function scrollBottom(force) {
@@ -128,8 +143,10 @@
     const ava = me
       ? '<div class="ava"><img src="' + MY_AVATAR + '" alt=""></div>'
       : avatarHtml(persona, 'ava');
+    const d = new Date(msg.ts || Date.now());
+    const hm = util.p2(d.getHours()) + ':' + util.p2(d.getMinutes());
     return '<div class="msg ' + (me ? 'me' : 'you') + '" data-id="' + msg.id + '">' + ava +
-      '<div class="wrap"><div class="bub">' + inner + '</div></div></div>';
+      '<div class="wrap"><div class="bub">' + inner + '</div><time>' + hm + '</time></div></div>';
   }
 
   let renderedMsgs = [];
@@ -203,7 +220,8 @@
   /* 只撤掉输入指示行和头部提示；不动发送按钮（流式进行中仍需显示"停止"） */
   function hideTypingIndicator() {
     if (typingRow) { typingRow.remove(); typingRow = null; }
-    $('chatSub').textContent = '';
+    const sub = $('chatSub');
+    if (sub) sub.innerHTML = '<b></b>在线';
   }
   function showTyping(on) {
     if (on) {
@@ -273,6 +291,10 @@
     lastRenderKey = loverId;
     sync.setUnread(loverId, 0);
     $('chatName').textContent = persona.nickname || persona.name;
+    /* Aurora：聊天页头显示对方头像 + 在线状态（仅视图层，数据不动） */
+    const pa = $('chatPeerAva');
+    if (pa) pa.innerHTML = avatarHtml(persona, 'avatar');
+    $('chatSub').innerHTML = '<b></b>在线';
     showPage('page-chat');
     renderChat(persona).then(function () {
       renderList();
@@ -739,9 +761,12 @@
       $('onboard').classList.remove('show');
       store.set('onboarded', 1);
     });
-    /* 底部标签栏：聊天 / 角色 / 朋友圈 / 设置 */
+    /* 底部标签栏：聊天 / 角色 / 朋友圈 / 我的 */
     const tb = $('tabbar');
     if (tb) {
+      /* Aurora 要求 6：底部「我的」入口显示用户头像（不用通用轮廓图标） */
+      const myAva = $('tabMyAva');
+      if (myAva) myAva.src = MY_AVATAR;
       tb.querySelectorAll('.tab').forEach(function (t) {
         t.addEventListener('click', function () {
           const id = t.getAttribute('data-tab');
@@ -751,12 +776,31 @@
         });
       });
     }
+    const hs = $('homeSearch');
+    if (hs) hs.addEventListener('input', applySearch);
+  }
+
+  /* Aurora：状态栏时钟（演示框内假状态栏；手机端由系统状态栏接管，CSS 隐藏） */
+  function startStatusClock() {
+    const el = $('statusClock');
+    if (!el) return;
+    const tick = function () {
+      const d = new Date();
+      el.textContent = util.p2(d.getHours()) + ':' + util.p2(d.getMinutes());
+    };
+    tick();
+    setInterval(tick, 15000);
   }
 
   ui.bootUi = function () {
     bindGlobal();
     bindChatEvents();
     bindMoments();
+    startStatusClock();
+    /* 启动即显示底部四栏 + 点亮聊天 tab：
+     * 修复「打开后 tabbar/其他页面不显示，点设置键才缓冲出来」——
+     * 此前 tabbar 的 .show 类只会在点击事件里由 showPage() 加上，启动流程从未调用。 */
+    showPage('page-home');
     renderList();
     store.get('onboarded', 0).then(function (v) {
       if (!v) $('onboard').classList.add('show');
