@@ -43,6 +43,12 @@
     if (settingsCache) return Promise.resolve(settingsCache);
     return store.get('settings', {}).then(function (s) {
       settingsCache = Object.assign({}, engine.DEFAULTS, s || {});
+      /* 语音设置迁移：旧版 CosyVoice/james 已废弃，自动切到 fish-speech-1.5 */
+      if (/CosyVoice|james/i.test(settingsCache.ttsModel + ' ' + settingsCache.ttsVoice)) {
+        settingsCache.ttsModel = engine.DEFAULTS.ttsModel;
+        settingsCache.ttsVoice = engine.DEFAULTS.ttsVoice;
+        store.set('settings', settingsCache).catch(function () {});
+      }
       return settingsCache;
     });
   };
