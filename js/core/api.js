@@ -111,12 +111,15 @@
   api.tts = function (opts) {
     const base = api.normalizeBase(opts.baseURL);
     if (!base || !opts.apiKey) return Promise.resolve(null);
+    /* 音色 ID 自带模型前缀（fishaudio/fish-speech-1.5:alex）——以音色为准，防设置里的旧模型名不匹配 */
+    const vm = (opts.voice && opts.voice.indexOf(':') >= 0) ? opts.voice.split(':')[0] : null;
+    const model = vm || opts.model;
     return fetch(base + '/audio/speech', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + opts.apiKey },
       body: JSON.stringify({
-        model: opts.model,
-        input: (opts.instruction ? String(opts.instruction) + '<|endofprompt|>' : '') + String(opts.text || '').slice(0, 500),
+        model: model,
+        input: (opts.instruction && /CosyVoice/i.test(model)) ? (String(opts.instruction) + '<|endofprompt|>') + String(opts.text || '').slice(0, 500) : String(opts.text || '').slice(0, 500),
         voice: opts.voice,
         response_format: 'mp3',
       }),
