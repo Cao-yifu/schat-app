@@ -240,25 +240,53 @@
     });
   };
 
-  /* 圈层互动：其他角色随机点赞 + 60% 概率一人留一句评论 */
+  /* 圈层互动（按熟悉度过滤，任务9）：熟人（2/3）点赞评论多，认识但不熟（1）很少，不认识（0）几乎不互动 */
   moments.react = function (m) {
     const personas = S.sync.list();
-      return Promise.resolve().then(function () {
+    return Promise.resolve().then(function () {
       const others = personas.filter(function (x) { return x.id !== m.pid && x.name; });
       if (!others.length) return;
-      const sh = others.slice().sort(function () { return Math.random() - 0.5; });
-      const nLikes = 1 + Math.floor(Math.random() * Math.min(3, others.length));
-      const likers = sh.slice(0, nLikes).map(function (x) { return x.name; });
-      m.likes = (m.likes || []).concat(likers.filter(function (n) { return (m.likes || []).indexOf(n) < 0; }));
-      if (Math.random() < 0.6 && sh.length) {
-        const who = sh[0];
-        const pool = moments.REACTIONS[who.name] || [];
-        if (pool.length) {
-          m.comments = m.comments || [];
-          m.comments.push({ who: who.name, text: pool[Math.floor(Math.random() * pool.length)] });
+      const cm = S.charmem;
+      if (!cm || !cm.famLevel) {
+        /* 无记忆模块时的旧行为（基本不会走到：charmem 已接入） */
+        const sh = others.slice().sort(function () { return Math.random() - 0.5; });
+        const nLikes = 1 + Math.floor(Math.random() * Math.min(3, others.length));
+        const likers = sh.slice(0, nLikes).map(function (x) { return x.name; });
+        m.likes = (m.likes || []).concat(likers.filter(function (n) { return (m.likes || []).indexOf(n) < 0; }));
+        if (Math.random() < 0.6 && sh.length) {
+          const who = sh[0];
+          const pool = moments.REACTIONS[who.name] || [];
+          if (pool.length) {
+            m.comments = m.comments || [];
+            m.comments.push({ who: who.name, text: pool[Math.floor(Math.random() * pool.length)] });
+          }
         }
+        return moments.update(m);
       }
-      return moments.update(m);
+      return Promise.all(others.map(function (o) {
+        return cm.famLevel(m.pid, o.id).then(function (lv) { return { o: o, lv: lv }; });
+      })).then(function (rows) {
+        const sh = rows.slice().sort(function () { return Math.random() - 0.5; });
+        /* 熟悉度 → 互动概率：3亲密 0.9 / 2熟 0.8 / 1认识 0.12 / 0不认识 0.02 */
+        const likers = [];
+        sh.forEach(function (r) {
+          const p = r.lv >= 3 ? 0.9 : r.lv === 2 ? 0.8 : r.lv === 1 ? 0.12 : 0.02;
+          if (Math.random() < p) likers.push(r.o.name);
+        });
+        /* 评论：优先熟人圈（熟/亲密）里挑一个 */
+        const fams = sh.filter(function (r) { return r.lv >= 2; });
+        const cands = fams.length ? fams : sh;
+        if (Math.random() < 0.6 && cands.length) {
+          const who = cands[0].o;
+          const pool = moments.REACTIONS[who.name] || [];
+          if (pool.length) {
+            m.comments = m.comments || [];
+            m.comments.push({ who: who.name, text: pool[Math.floor(Math.random() * pool.length)] });
+          }
+        }
+        m.likes = (m.likes || []).concat(likers.filter(function (n) { return (m.likes || []).indexOf(n) < 0; }));
+        return moments.update(m);
+      });
     });
   };
 
