@@ -58,6 +58,15 @@
   };
   engine.activeLover = null;      // 当前打开的聊天（未读判断用）
 
+  /* 私聊回复延迟记忆（任务：5-10 秒弹性随机，不连续重复同一极端值；测试可缩区间） */
+  const replyDelayMem = {};
+  engine._REPLY_DELAY = [5000, 10000];
+  engine._replyDelay = function (loverId) {
+    const d = util.elasticRand(engine._REPLY_DELAY[0], engine._REPLY_DELAY[1], replyDelayMem[loverId]);
+    replyDelayMem[loverId] = d;
+    return d;
+  };
+
   const running = {};             // loverId -> 运行态
   const queues = {};              // loverId -> Promise 链（串行）
   const followTimers = {};
@@ -313,10 +322,16 @@
           return Promise.all([
             cm.inject({ pid: loverId, others: opts.mentioned || [], face: 'me', msgs: history }),
             store.get('pextra:' + loverId, ''),
+            store.get('myprofile', null),
           ]).then(function (mr) {
           let more = '';
           if (mr[0]) more += mr[0];
           if (mr[1]) more += '\n【用户给你的补充人设】（高于默认人设；与故事板/记忆闭环冲突时，以后者为准）\n' + mr[1];
+          /* 我的名片（任务：主聊天注入我的名字+描述，用我的名字称呼我） */
+          if (mr[2]) {
+            const mpBlock = prompt.myProfileBlock(mr[2]);
+            if (mpBlock) more += mpBlock;
+          }
           if (more) ctx.extra = (ctx.extra ? ctx.extra + '\n' : '') + more;
           const system = prompt.buildSystem(persona, ctx);
           const messages = [{ role: 'system', content: system }].concat(prompt.buildHistory(history, st.historyN));
@@ -395,8 +410,9 @@
             return state.result;
           }
 
-          /* 「对方正在输入…」停顿后再发请求，拟真人节奏 */
-          const delay = util.randInt(700, 2200);
+          /* 「对方正在输入…」停顿后再发请求：5-10 秒弹性随机（模拟真人看到→想→打字），
+           * 期间输入中动画保持，不连续重复同一极端值 */
+          const delay = engine._replyDelay(loverId);
           startTyping();
           return new Promise(function (resolve) { setTimeout(resolve, delay); }).then(function () {
             if (state.done) return state.released; // 停顿期间被停止
