@@ -170,9 +170,17 @@
 
   /* 落库 + 上限裁剪：先裁到 MAX_MSGS-1 再追加（同一条串行链，store.trimMsgs/appendMsg），
    * 链上任何时刻条数 ≤ MAX_MSGS（连瞬时 121 都不可能出现）；
-   * 裁剪=整体重写消息数组，旧消息数据同步删除（IndexedDB put 替换）。 */
+   * 裁剪=整体重写消息数组，旧消息数据同步删除（IndexedDB put 替换）。
+   * 数量区间只作用于双人窥屏会话；群聊保持现状（原样追加、不裁剪）。 */
   function appendOne(sid, msg) {
     const key = pw.MSG_KEY(sid);
+    const meta = metaCache[sid];
+    if (meta && meta.kind !== 'dual') {
+      return store.appendMsg(key, msg).then(function () {
+        pw.hooks.onMsg(sid, msg, 'append');
+        return msg;
+      });
+    }
     return store.trimMsgs(key, pw.MAX_MSGS - 1).then(function () {
       return store.appendMsg(key, msg);
     }).then(function () {
@@ -180,8 +188,10 @@
       return msg;
     });
   }
-  /* 老数据一次性兜底：打开/启动时把超 120 条的链裁到 120 */
+  /* 老数据一次性兜底：打开/启动时把超 120 条的双人链裁到 120（群聊不动） */
   function enforceCap(sid) {
+    const meta = metaCache[sid];
+    if (!meta || meta.kind !== 'dual') return Promise.resolve();
     return store.trimMsgs(pw.MSG_KEY(sid), pw.MAX_MSGS);
   }
 
@@ -241,10 +251,10 @@
     });
   }
 
-  /* 打开窥屏页时：消息数 < 10 → 快速补齐到至少 10 条，随后交给正常实时节奏 */
+  /* 打开窥屏页时：双人会话消息数 < 10 → 快速补齐到至少 10 条，随后交给正常实时节奏（群聊不补） */
   function ensureMinMsgs(sid) {
     const meta = metaCache[sid];
-    if (!meta || meta.paused || busy[sid]) return Promise.resolve();
+    if (!meta || meta.kind !== 'dual' || meta.paused || busy[sid]) return Promise.resolve();
     return pw.msgs(sid).then(function (msgs) {
       const need = pw.MIN_MSGS - msgs.length;
       if (need <= 0) return null;
