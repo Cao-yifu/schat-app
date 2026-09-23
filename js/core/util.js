@@ -29,6 +29,18 @@
   /* 随机整数 [a,b) */
   util.randInt = function (a, b) { return a + Math.floor(Math.random() * (b - a)); };
 
+  /* 弹性随机（节奏用）：区间内随机，且不连续重复同一个值、不连续两次都命中极端值
+   *（区间两端各 15% 视为极端）——防止一直秒回或一直拖很久。last 传上一次的值。 */
+  util.elasticRand = function (a, b, last) {
+    const span = b - a;
+    const edge = function (x) { return span > 0 && (x <= a + span * 0.15 || x >= b - span * 0.15); };
+    let v = util.randInt(a, b);
+    for (let i = 0; i < 10 && last != null && (v === last || (edge(v) && edge(last))); i++) {
+      v = util.randInt(a, b);
+    }
+    return v;
+  };
+
   /* 微信列表时间格式：今天 HH:mm / 昨天 / 周一~周日 / 年-月-日 */
   util.listTime = function (ts) {
     const d = new Date(ts), now = new Date();
