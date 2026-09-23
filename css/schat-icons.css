@@ -1,0 +1,17 @@
+:root{
+  --schat-icon-default:#7E89A8;
+  --schat-icon-active:#82E4D4;
+  --schat-icon-primary:#8EA7FF;
+  --schat-icon-warm:#FF8A59;
+  --schat-icon-danger:#FF7F8B;
+  --schat-icon-disabled:#4B536B;
+  --schat-icon-stroke:1.7;
+}
+.schat-icon{width:24px;height:24px;display:inline-block;fill:none;stroke:currentColor;stroke-width:var(--schat-icon-stroke);stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.schat-icon .fill{fill:currentColor;stroke:none}
+.schat-icon-button{width:44px;height:44px;border:1px solid rgba(222,232,255,.14);border-radius:15px;background:rgba(37,45,70,.58);color:var(--schat-icon-default);display:grid;place-items:center;backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
+.schat-icon-button[data-state="active"]{color:var(--schat-icon-active);border-color:rgba(130,228,212,.34);background:rgba(130,228,212,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 0 18px rgba(130,228,212,.08)}
+.schat-icon-button[data-tone="primary"]{color:#0D1424;border-color:rgba(173,188,255,.58);background:linear-gradient(145deg,#B2C1FF,#7F9BFF);box-shadow:0 8px 22px rgba(99,127,255,.22)}
+.schat-icon-button[data-tone="warm"]{color:#17101A;border-color:rgba(255,174,130,.58);background:linear-gradient(145deg,#FFA36F,#FF784C);box-shadow:0 8px 22px rgba(255,120,76,.22)}
+.schat-icon-button[data-tone="danger"]{color:var(--schat-icon-danger)}
+.schat-icon-button:disabled{color:var(--schat-icon-disabled);opacity:.55}
