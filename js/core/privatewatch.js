@@ -12,6 +12,10 @@
  *   pacing = slow          —— 强制慢聊（几十秒~几天随机间隔）
  *   没在看期间的慢聊：打开窥屏页时按「离开时长 + 随机间隔 + 跳过睡眠」补齐。
  *
+ * 数量区间（v74）：每组双人窥屏会话消息 10~120 条。
+ *   下限：打开窥屏页时不足 10 条 → 1.5~3 秒/条快速补齐（时间戳散布最近时段、遵守个人作息）；
+ *   上限：任何落库路径先裁后存，只保留最新 120 条（实时/慢聊/回填/补齐一视同仁）。
+ *
  * 睡眠（个人作息，v73）：
  *   persona.sleep=[起,止]（缺省 2-7）——实时模式：睡着的角色这一轮不发言、醒着的继续聊；
  *   慢聊/回填跳过睡眠段；被接管的角色不受睡眠限制。
@@ -154,6 +158,101 @@
   pw.MSG_KEY = function (sid) { return 'pw:' + sid; };
   pw.msgs = function (sid) { return store.msgs(pw.MSG_KEY(sid)); };
   pw.list = function () { return store.get(LIST_KEY, []); };
+
+  /* ---------- 数量区间（10~120 条） ---------- */
+  pw.MIN_MSGS = 10;            // 打开窥屏页时至少补足到 10 条
+  pw.MAX_MSGS = 120;           // 任何时刻最多保留 120 条（超出的最旧消息落库前裁掉）
+  pw._FILL = {
+    gap: [1500, 3000],         // 快速补齐：两条之间真实间隔 1.5~3 秒
+    spanMs: 24 * 3600 * 1000,  // 补齐消息时间戳散布窗口（最近 24 小时）
+    minWindow: 5 * 60 * 1000,  // 窗口下限 5 分钟（刚建会话也能散布开）
+  };
+
+  /* 落库 + 上限裁剪：先裁到 MAX_MSGS-1 再追加（同一条串行链，store.trimMsgs/appendMsg），
+   * 链上任何时刻条数 ≤ MAX_MSGS（连瞬时 121 都不可能出现）；
+   * 裁剪=整体重写消息数组，旧消息数据同步删除（IndexedDB put 替换）。 */
+  function appendOne(sid, msg) {
+    const key = pw.MSG_KEY(sid);
+    return store.trimMsgs(key, pw.MAX_MSGS - 1).then(function () {
+      return store.appendMsg(key, msg);
+    }).then(function () {
+      pw.hooks.onMsg(sid, msg, 'append');
+      return msg;
+    });
+  }
+  /* 老数据一次性兜底：打开/启动时把超 120 条的链裁到 120 */
+  function enforceCap(sid) {
+    return store.trimMsgs(pw.MSG_KEY(sid), pw.MAX_MSGS);
+  }
+
+  /* 快速补齐计划：need 个槽位时间戳散布在 [start, now]，严格交替选人；
+   * 发言人在槽位时间睡着 → 顺延到 TA 醒来的时刻（遵守个人作息，绝不在睡眠窗口造消息）；
+   * 顺延越界（到现在还没醒）→ 弃掉剩余槽位，宁缺毋滥，醒后实时节奏自然续上。 */
+  function buildFillPlan(meta, msgs, need, now) {
+    const plan = [];
+    let lastTs = 0;
+    for (const m of msgs) { if (m.ts && m.ts > lastTs) lastTs = m.ts; }
+    let start = lastTs ? Math.max(lastTs, now - pw._FILL.spanMs) : (now - pw._FILL.spanMs);
+    if (now - start < pw._FILL.minWindow) start = now - pw._FILL.minWindow;
+    let t = Math.max(start, lastTs || 0); // 槽位时间不得早于最后一条消息（不乱序）
+    let guard = 0;
+    while (plan.length < need && guard++ < 200) {
+      const target = start + (plan.length + 1) * (now - start) / (need + 1);
+      t = Math.max(t + 1000, target); // 严格递增，至少间隔 1 秒
+      if (t > now) break;
+      const cur = msgs.concat(plan.map(function (p) { return { role: p.sp }; }));
+      const sp = pw.nextSpeaker(meta, cur);
+      if (!sp || !sync.get(sp)) break;
+      /* 发言人在槽位时间睡着 → 顺延到醒来的时刻；作息表与测试钩子不一致时半小时步进兜底 */
+      let g2 = 0;
+      while (asleepAt(t, sp) && t <= now && g2++ < 48) {
+        const wake = wakeEndFor(sp, t);
+        if (wake && wake > t && wake < now) t = Math.max(t + 1000, wake);
+        else t += 30 * 60 * 1000;
+      }
+      if (t > now) break; // 现在还没醒：到此为止，宁缺毋滥
+      plan.push({ ts: t, sp: sp });
+    }
+    return plan;
+  }
+
+  /* 快速补齐执行：每条间隔 1.5~3 秒连续生成（真实时间），消息时间戳用计划里的历史时刻 */
+  function runFill(sid, meta, plan) {
+    if (!plan.length) return Promise.resolve();
+    busy[sid] = true;
+    let chain = Promise.resolve();
+    for (const slot of plan) {
+      chain = chain.then(function () {
+        if (meta.paused || meta.genOff === 'nokey' || meta.genOff === 'err') return;
+        if (meta.takenBy === slot.sp) return; // 中途被接管：该角色不自动发言
+        return new Promise(function (res) {
+          setTimeout(res, util.randInt(pw._FILL.gap[0], pw._FILL.gap[1]));
+        }).then(function () {
+          return genOne(sid, meta, slot.sp, slot.ts);
+        });
+      });
+    }
+    return chain.then(function () {
+      busy[sid] = false;
+      return saveMeta(sid).then(function () { pw.hooks.onState(sid); });
+    }, function (err) {
+      busy[sid] = false;
+      console.warn('[偷窥快速补齐]', err && err.message);
+    });
+  }
+
+  /* 打开窥屏页时：消息数 < 10 → 快速补齐到至少 10 条，随后交给正常实时节奏 */
+  function ensureMinMsgs(sid) {
+    const meta = metaCache[sid];
+    if (!meta || meta.paused || busy[sid]) return Promise.resolve();
+    return pw.msgs(sid).then(function (msgs) {
+      const need = pw.MIN_MSGS - msgs.length;
+      if (need <= 0) return null;
+      const plan = buildFillPlan(meta, msgs, need, Date.now());
+      return runFill(sid, meta, plan);
+    });
+  }
+
   pw.meta = function (sid) {
     if (metaCache[sid]) return Promise.resolve(metaCache[sid]);
     return store.get('pwmeta:' + sid, null).then(function (m) {
@@ -297,8 +396,7 @@
     return saveMeta(sid).then(function () {
       pw.hooks.onState(sid);
       const sys = { id: util.uid(), role: 'sys', type: 'text', text: meta.announcement ? '你更新了群公告' : '你清空了群公告', ts: Date.now() };
-      return store.appendMsg(pw.MSG_KEY(sid), sys).then(function () {
-        pw.hooks.onMsg(sid, sys, 'append');
+      return appendOne(sid, sys).then(function () {
         return meta.announcement;
       });
     });
@@ -313,8 +411,7 @@
     meta.members.push(pid);
     meta.names[pid] = nm;
     const sys = { id: util.uid(), role: 'sys', type: 'text', text: '你邀请「' + nm + '」加入了群聊', ts: Date.now() };
-    return store.appendMsg(pw.MSG_KEY(sid), sys).then(function () {
-      pw.hooks.onMsg(sid, sys, 'append');
+    return appendOne(sid, sys).then(function () {
       meta.lastGen = Date.now();
       return saveMeta(sid);
     }).then(function () {
@@ -340,8 +437,7 @@
     if (meta.gnicks) delete meta.gnicks[pid];
     if (meta.takenBy === pid) meta.takenBy = null;
     const sys = { id: util.uid(), role: 'sys', type: 'text', text: '你将「' + nm + '」移出了群聊', ts: Date.now() };
-    return store.appendMsg(pw.MSG_KEY(sid), sys).then(function () {
-      pw.hooks.onMsg(sid, sys, 'append');
+    return appendOne(sid, sys).then(function () {
       return saveMeta(sid);
     }).then(function () {
       // 记忆痕迹 + 熟悉度下调 + 被踢反应调度（任务10）
@@ -524,8 +620,7 @@
             const text = prompt.truncate(prompt.sanitizeReply(raw), Math.min(st.maxChars || 400, 200));
             if (!text) return null;
             const msg = { id: util.uid(), role: pid, type: 'text', text: text, ts: ts };
-            return store.appendMsg(pw.MSG_KEY(sid), msg).then(function () {
-              pw.hooks.onMsg(sid, msg, 'append');
+            return appendOne(sid, msg).then(function () {
               meta.genOff = null;
               meta.lastGen = Date.now();
               /* 记忆闭环 + 熟悉度推进 + 角色间照片 + 自发改群昵称（异步，不阻塞） */
@@ -608,8 +703,7 @@
         if (!entry) return;
         return store.set(key, Date.now()).then(function () {
           const img = { id: util.uid(), role: pid, type: 'image', text: '', src: entry.s, ts: Date.now() };
-          return store.appendMsg(pw.MSG_KEY(sid), img).then(function () {
-            pw.hooks.onMsg(sid, img, 'append');
+          return appendOne(sid, img).then(function () {
             meta.lastGen = Date.now();
             return saveMeta(sid);
           });
@@ -643,8 +737,7 @@
       meta.gnicks = meta.gnicks || {};
       meta.gnicks[pid] = nick;
       const sys = { id: util.uid(), role: 'sys', type: 'text', text: old + ' 将群昵称改为「' + nick + '」', ts: Date.now() };
-      return store.appendMsg(pw.MSG_KEY(sid), sys).then(function () {
-        pw.hooks.onMsg(sid, sys, 'append');
+      return appendOne(sid, sys).then(function () {
         return saveMeta(sid);
       }).then(function () {
         cm.groupEntry(sid, pid + ' 在群里把昵称改成了「' + nick + '」', { layer: 'face', level: 1, impact: 'low' });
@@ -797,8 +890,7 @@
     const t = String(text || '').trim();
     if (!t) return Promise.resolve();
     const msg = { id: util.uid(), role: pid, type: 'text', text: t, ts: Date.now(), actor: 'user' };
-    return store.appendMsg(pw.MSG_KEY(sid), msg).then(function () {
-      pw.hooks.onMsg(sid, msg, 'append');
+    return appendOne(sid, msg).then(function () {
       meta.lastGen = Date.now();
       cm.observe(meta, meta, null); // 用户替身发言也计入对话量
       return saveMeta(sid);
@@ -812,8 +904,7 @@
     const t = String(text || '').trim();
     if (!t) return Promise.resolve();
     const msg = { id: util.uid(), role: 'user', type: 'text', text: t, ts: Date.now() };
-    return store.appendMsg(pw.MSG_KEY(sid), msg).then(function () {
-      pw.hooks.onMsg(sid, msg, 'append');
+    return appendOne(sid, msg).then(function () {
       meta.lastGen = Date.now();
       cm.observe(meta, meta, null);
       return saveMeta(sid);
@@ -826,7 +917,10 @@
     const meta = metaCache[sid];
     if (!meta) return Promise.resolve();
     meta.genOff = null; // 重新打开：允许再试（Key 可能已补上）
-    return runBackfill(sid).then(function () { armNext(sid); });
+    return runBackfill(sid)
+      .then(function () { return enforceCap(sid); })   // 老数据超 120 先裁
+      .then(function () { return ensureMinMsgs(sid); }) // 不足 10 条快速补齐
+      .then(function () { armNext(sid); });            // 随后进入正常实时节奏
   };
   pw.close = function () {
     if (watching) {
@@ -836,11 +930,12 @@
     watching = null;
   };
 
-  /* App 启动：强制实时的会话恢复循环（其余等打开窥屏页时回填） */
+  /* App 启动：强制实时的会话恢复循环（其余等打开窥屏页时回填）；顺带把超 120 的老数据裁掉 */
   pw.scheduleAll = function () {
     return pw.listMeta().then(function (metas) {
       metas.forEach(function (meta) {
         metaCache[meta.id] = meta;
+        enforceCap(meta.id); // 上限硬约束兜底（不阻塞启动）
         if (meta.pacing === 'realtime' && !meta.paused) armNext(meta.id);
       });
     });
