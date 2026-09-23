@@ -34,6 +34,11 @@
     return '<div class="' + cls + '" style="background:' + (p.avatarColor || '#8AA88F') + '">' + esc(p.name[0]) + '</div>';
   }
 
+  /* Aurora 图标系统 v74：唯一图标源 assets/schat-icons.svg；不自行重绘、不引入第三方图标库 */
+  function ic(sym, cls) {
+    return '<svg class="' + (cls || 'schat-icon') + '" aria-hidden="true"><use href="./assets/schat-icons.svg#' + sym + '"></use></svg>';
+  }
+
   function showPage(id) {
     const pages = document.querySelectorAll('.page');
     for (const pg of pages) pg.classList.remove('active');
@@ -176,7 +181,7 @@
             row.classList.add('pinned');
             const mark = document.createElement('span');
             mark.className = 'pinmark';
-            mark.textContent = '📌 ';
+            mark.innerHTML = ic('schat-chevron-right', 'schat-icon ic-sm ic-up ic-pin');
             const nm = row.querySelector('.nm');
             nm.insertBefore(mark, nm.firstChild);
             pinnedRows.push(row);
@@ -313,17 +318,14 @@
     if (sub) sub.innerHTML = '<b></b>在线';
   }
   function showTyping(on) {
+    const btn = $('sendTextBtn');
     if (on) {
       hideTypingIndicator();
       $('chatSub').textContent = '对方正在输入…';
-      const btn = $('sendBtn');
-      btn.textContent = '⏹';
-      btn.classList.add('stop');
+      if (btn) { btn.innerHTML = ic('schat-stop'); btn.classList.add('stop'); }
     } else {
       hideTypingIndicator();
-      const btn = $('sendBtn');
-      btn.textContent = '⊕';
-      btn.classList.remove('stop');
+      if (btn) { btn.innerHTML = ic('schat-send'); btn.classList.remove('stop'); }
     }
     const box = $('chatScroll');
     if (on) {
@@ -486,13 +488,13 @@
     mbar.className = 'mbar';
     const lk = document.createElement('div');
     lk.className = 'act' + (m.liked ? ' liked' : '');
-    lk.innerHTML = '<span>' + (m.liked ? '♥' : '♡') + '</span><span>' + (m.liked ? '取消' : '赞') + '</span>';
+    lk.innerHTML = '<span class="actic">' + (m.liked ? ic('schat-heart-filled', 'schat-icon ic-txt') : ic('schat-heart', 'schat-icon ic-txt')) + '</span><span>' + (m.liked ? '取消' : '赞') + '</span>';
     lk.addEventListener('click', function () {
       M.toggleLike(m).then(renderMoments);
     });
     const cm = document.createElement('div');
     cm.className = 'act';
-    cm.innerHTML = '<span>💬</span><span>评论</span>';
+    cm.innerHTML = '<span class="actic">' + ic('schat-comment', 'schat-icon ic-txt') + '</span><span>评论</span>';
     cm.addEventListener('click', function () {
       const ip = post.querySelector('.cmtinput');
       if (ip) ip.classList.toggle('show');
@@ -507,7 +509,7 @@
       if (likeNames.length) {
         const ll = document.createElement('div');
         ll.className = 'likeline';
-        ll.innerHTML = '<span class="lk">♥</span><span>' + esc(likeNames.join('、')) + '</span>';
+        ll.innerHTML = '<span class="lk">' + ic('schat-heart-filled', 'schat-icon ic-sm') + '</span><span>' + esc(likeNames.join('、')) + '</span>';
         ll.addEventListener('click', function () { M.toggleLike(m).then(renderMoments); });
         foot.appendChild(ll);
       }
@@ -563,7 +565,7 @@
     return M.list().then(function (arr) {
       box.innerHTML = '';
       if (!arr.length) {
-        box.innerHTML = '<div class="empty"><div class="big">🫧</div>TA们还没有发过动态<br><br><button class="gbtn" id="mComposeFirst">＋ 发第一条</button></div>';
+        box.innerHTML = '<div class="empty"><div class="big">' + ic('schat-chat', 'schat-icon ic-big') + '</div>TA们还没有发过动态<br><br><button class="gbtn" id="mComposeFirst">' + ic('schat-plus', 'schat-icon ic-txt') + '发第一条</button></div>';
         const b = $('mComposeFirst');
         if (b) b.addEventListener('click', openCompose);
         return;
@@ -746,17 +748,17 @@
     const effRealtime = meta.pacing === 'realtime' || meta.pacing === 'auto';
     let html = '';
     html += meta.paused
-      ? '<button class="pwbtn on" id="peekPauseBtn">▶ 继续</button>'
-      : '<button class="pwbtn" id="peekPauseBtn">⏸ 暂停</button>';
+      ? '<button class="pwbtn on" id="peekPauseBtn">' + ic('schat-chevron-right', 'schat-icon ic-txt') + '继续</button>'
+      : '<button class="pwbtn" id="peekPauseBtn">' + ic('schat-stop', 'schat-icon ic-txt') + '暂停</button>';
     html += effRealtime
-      ? '<button class="pwbtn on" id="peekPaceBtn">⚡ 实时中 · 切回慢聊</button>'
-      : '<button class="pwbtn" id="peekPaceBtn">🐢 慢聊中 · 开始实时</button>';
+      ? '<button class="pwbtn on" id="peekPaceBtn">' + ic('schat-moments', 'schat-icon ic-txt') + '实时中 · 切回慢聊</button>'
+      : '<button class="pwbtn" id="peekPaceBtn">' + ic('schat-back', 'schat-icon ic-txt') + '慢聊中 · 开始实时</button>';
     if (meta.kind === 'dual') {
       meta.members.forEach(function (m) {
         const on = meta.takenBy === m;
         html += on
-          ? '<button class="pwbtn warn" data-take="' + m + '">✋ 放手「' + esc(meta.names[m] || m) + '」</button>'
-          : '<button class="pwbtn" data-take="' + m + '">🎭 接管「' + esc(meta.names[m] || m) + '」</button>';
+          ? '<button class="pwbtn warn" data-take="' + m + '">' + ic('schat-back', 'schat-icon ic-txt') + '放手「' + esc(meta.names[m] || m) + '」</button>'
+          : '<button class="pwbtn" data-take="' + m + '">' + ic('schat-characters', 'schat-icon ic-txt') + '接管「' + esc(meta.names[m] || m) + '」</button>';
       });
     }
     if (meta.paused) html += '<span class="pwbtn note">已暂停：不会产生新消息，点「继续」恢复。</span>';
@@ -843,7 +845,7 @@
       })).then(function (rows) {
         box.innerHTML = '';
         if (!rows.length) {
-          box.innerHTML = '<div class="empty"><div class="big">👁</div>还没有偷窥局<br>挑两个角色，看 TA 们自己聊</div>';
+          box.innerHTML = '<div class="empty"><div class="big">' + ic('schat-eye-link', 'schat-icon ic-big') + '</div>还没有偷窥局<br>挑两个角色，看 TA 们自己聊</div>';
           return;
         }
         rows.forEach(function (r) {
@@ -882,7 +884,8 @@
         c.classList.toggle('sel', state.sel.indexOf(c.getAttribute('data-pid')) >= 0);
       });
     };
-    sync.list().forEach(function (p) {
+    /* 选人面板包含 hidden 隐藏角色（如王忆可） */
+    sync.list({ all: true }).forEach(function (p) {
       const c = document.createElement('div');
       c.className = 'rolecard';
       c.setAttribute('data-pid', p.id);
@@ -964,7 +967,8 @@
     const pick = $('pwInvitePick');
     if (pick) {
       pick.innerHTML = '';
-      sync.list().forEach(function (p) {
+      /* 邀请面板同样包含 hidden 角色 */
+      sync.list({ all: true }).forEach(function (p) {
         if (meta.members.indexOf(p.id) >= 0) return;
         const c = document.createElement('div');
         c.className = 'rolecard';
@@ -1201,10 +1205,13 @@
 
   function bindChatEvents() {
     $('chatBackBtn').addEventListener('click', closeChat);
-    /* ⊕ = 添加本地图片；Enter 仍发送文字 */
+    /* ⊕(schat-plus) = 添加本地图片（功能与位置保留）；发送/停止走 sendTextBtn；Enter 仍发送文字 */
     $('sendBtn').addEventListener('click', function () {
+      $('chatFile').click();
+    });
+    $('sendTextBtn').addEventListener('click', function () {
       if (engine.isRunning(currentLover)) engine.stop(currentLover);
-      else $('chatFile').click();
+      else doSend();
     });
     /* emoji 面板 */
     const emojiBar = $('emojibar');
@@ -1321,7 +1328,7 @@
       '<div class="pid2">' + esc((p.card && (p.card['身份'] || p.card.job)) || '') + '</div></div>';
 
     /* 发起对话 + 补充人设（任务8） */
-    html += '<button class="gbtn" id="profileChatBtn">💬 发起对话</button>';
+    html += '<button class="gbtn" id="profileChatBtn">' + ic('schat-chat', 'schat-icon ic-txt') + '发起对话</button>';
     html += '<div class="card"><div class="ct">补充人设（只对 TA 生效，高于默认人设）</div><div class="cb">' +
       '<textarea id="pextraInp" class="compose-input" placeholder="给 TA 写自定义人设补充，例如：他现在升职了、最近在戒烟……保存后每次生成回复都会注入（低于故事板/记忆闭环）"></textarea>' +
       '<div class="pwrow2"><button class="gbtn ghost" id="pextraClear">清空</button><button class="gbtn" id="pextraSave">保存</button></div>' +
@@ -1362,7 +1369,7 @@
         }).join('') + '</div></div>';
     }
 
-    html += '<div class="card"><div class="ct">用户设定 <span class="mini" id="addRsBtn">＋ 手动加 RS</span></div><div class="cb" id="rsListBox"><div class="lirow">加载中…</div></div></div>';
+    html += '<div class="card"><div class="ct">用户设定 <span class="mini" id="addRsBtn">' + ic('schat-plus', 'schat-icon ic-txt') + '手动加 RS</span></div><div class="cb" id="rsListBox"><div class="lirow">加载中…</div></div></div>';
     html += '<div class="hint">在聊天里发 <span class="kbd">RS 内容</span> 永久写入设定、<span class="kbd">LS 内容</span> 本次会话生效、<span class="kbd">【3小时后】</span> 快进时间。TA 说过的时间约定会被自动记住并在到期时提醒兑现。</div>';
     bd.innerHTML = html;
 
@@ -1415,9 +1422,9 @@
       const bd = $('setBody');
       bd.innerHTML =
         '<div class="card"><div class="ct">常用入口</div><div class="cb">' +
-        '<div class="entryrow" id="entrySet">⚙ 设置与 AI 接口</div>' +
-        '<div class="entryrow" id="entryTips">💡 使用提示</div>' +
-        '<div class="entryrow" id="entryHelp">❓ 帮助与关于</div>' +
+        '<div class="entryrow" id="entrySet">' + ic('schat-settings', 'schat-icon ic-txt') + '设置与 AI 接口</div>' +
+        '<div class="entryrow" id="entryTips">' + ic('schat-memory', 'schat-icon ic-txt') + '使用提示</div>' +
+        '<div class="entryrow" id="entryHelp">' + ic('schat-comment', 'schat-icon ic-txt') + '帮助与关于</div>' +
         '</div></div>' +
 
         '<div class="card"><div class="ct">AI 接口（OpenAI 兼容，只发到你填的地址）</div><div class="cb">' +
@@ -1560,7 +1567,14 @@
     if (tb) {
       /* Aurora 要求 6：底部「我的」入口显示用户头像（不用通用轮廓图标） */
       const myAva = $('tabMyAva');
-      if (myAva) myAva.src = MY_AVATAR;
+      if (myAva) {
+        myAva.src = MY_AVATAR;
+        myAva.onerror = function () {
+          myAva.style.display = 'none';
+          const fb = document.querySelector('#tabMyAva + .nav-ava-fb');
+          if (fb) fb.style.display = 'block';
+        };
+      }
       tb.querySelectorAll('.tab').forEach(function (t) {
         t.addEventListener('click', function () {
           const id = t.getAttribute('data-tab');
