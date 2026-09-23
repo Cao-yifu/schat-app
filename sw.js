@@ -1,7 +1,9 @@
-const CACHE_NAME = 'schat-v2-v5';
+const CACHE_NAME = 'schat-v2-v7';
 const PRECACHE = [
   './index.html',
   './manifest.webmanifest',
+  './assets/schat-icons.svg',
+  './css/schat-icons.css',
 ];
 
 self.addEventListener('install', function (event) {
@@ -53,10 +55,10 @@ self.addEventListener('fetch', function (event) {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  if (url.protocol === 'data:' || request.destination === 'image') return;
+  if (url.protocol === 'data:' || (request.destination === 'image' && !/\.svg$/i.test(url.pathname))) return;
 
   const isNavigation = request.mode === 'navigate';
-  const isStaticCode = url.origin === self.location.origin && /\.(?:js|css|json)$/i.test(url.pathname);
+  const isStaticCode = url.origin === self.location.origin && /\.(?:js|css|json|svg)$/i.test(url.pathname);
   if (!isNavigation && !isStaticCode) return;
 
   event.respondWith(networkFirst(request, isNavigation));
