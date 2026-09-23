@@ -7,7 +7,7 @@
  *   msgs:pw:<sid>      —— 会话消息（复用 store.msgs 的串行链）
  *
  * 节奏规则：
- *   pacing = auto（默认）  —— 窥屏页开着 = 实时（双人 5-10 秒/条；群聊 5-120 秒/轮、每轮 1-3 人，带输入中停顿）；
+ *   pacing = auto（默认）  —— 窥屏页开着 = 实时（双人 3-5 秒/条；群聊 5-120 秒/轮、每轮 1-3 人，带输入中停顿）；
  *                            没在看 = 慢聊
  *   pacing = realtime      —— 强制实时（App 开着就一直聊，同上节奏）
  *   pacing = slow          —— 强制慢聊（几十秒~几天随机间隔）
@@ -55,12 +55,12 @@
 
   /* 节奏参数（测试可覆盖 _INTERVALS） */
   pw._INTERVALS = {
-    rt: [5000, 10000],           // 双人实时：条与条之间 5-10 秒弹性随机（任务7）
+    rt: [3000, 5000],           // 双人实时：条与条之间 3-5 秒弹性随机（任务7）
     rtGroup: [5000, 120000],     // 群聊实时：5-120 秒区间弹性变化（任务6）
     speedTiers: {                // 角色回复速度档（persona.replySpeed，缺省 mid）
-      fast: [5000, 15000],       // 爱秒回的：5-15 秒
-      mid: [8000, 40000],        // 一般的：8-40 秒
-      slow: [60000, 120000],     // 忙的：60-120 秒
+      fast: [3000, 8000],        // 爱秒回的：3-8 秒
+      mid: [5000, 10000],        // 一般的：5-10 秒
+      slow: [15000, 30000],      // 忙的：15-30 秒
     },
     typing: [1200, 2800],        // 「正在输入…」停顿 1.2-2.8 秒
     slowSegs: [                  // 慢聊间隔分布：[min,max,累计概率]
@@ -158,7 +158,7 @@
   };
 
   /* 实时延迟（任务6/7）：
-   * 双人 = 5-10 秒弹性随机；群聊 = 上一轮最后发言人的速度档内随机 + 全局抖动，
+   * 双人 = 3-5 秒弹性随机；群聊 = 上一轮最后发言人的速度档内随机 + 全局抖动，
    * 钳制在 5-120 秒；两种都保证不连续重复同一值/同一极端值（节奏有起伏）。 */
   pw._rtDelay = function (meta) {
     const last = lastRt[meta.id];
@@ -941,7 +941,7 @@
     if (!realtime && watching !== sid) return; // 没在看且非强制实时：不跑定时器，下次打开回填
     let delay;
     if (delayOverride != null) delay = delayOverride;
-    else if (realtime) delay = pw._rtDelay(meta); // 双人 5-10s / 群聊 5-120s 弹性（任务6/7）
+    else if (realtime) delay = pw._rtDelay(meta); // 双人 3-5s / 群聊 5-120s 弹性（任务6/7）
     else delay = Math.max(500, (meta.lastGen || Date.now()) + pw.slowInterval() - Date.now());
     timers[sid] = setTimeout(function () { doTurn(sid); }, delay);
   }
