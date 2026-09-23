@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <symbol id="schat-search" viewBox="0 0 24 24"><circle cx="10.7" cy="10.7" r="5.6"/><path d="m15 15 4.2 4.2"/></symbol>
+  <symbol id="schat-chat" viewBox="0 0 24 24"><path d="M5.3 5.8h13.4a2.3 2.3 0 0 1 2.3 2.3v6.6a2.3 2.3 0 0 1-2.3 2.3H11l-4.8 3v-3H5.3A2.3 2.3 0 0 1 3 14.7V8.1a2.3 2.3 0 0 1 2.3-2.3Z"/><path d="M7.3 11.4h.1m4.5 0h.1m4.5 0h.1"/></symbol>
+  <symbol id="schat-characters" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.1"/><path d="M3.8 18.8c.4-3.3 2.2-5 5.2-5s4.8 1.7 5.2 5"/><circle cx="17.2" cy="9.2" r="2.2"/><path d="M15.5 14.6c3.2-.5 4.7.9 5 3.8"/></symbol>
+  <symbol id="schat-moments" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="2.6"/><path d="M12 2.7v1.9M21.3 12h-1.9M12 21.3v-1.9M2.7 12h1.9"/></symbol>
+  <symbol id="schat-profile" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19.4c.6-4.1 2.8-6.1 6.5-6.1s5.9 2 6.5 6.1"/></symbol>
+  <symbol id="schat-eye-link" viewBox="0 0 24 24"><path d="M2.8 12s3.1-5.1 9.2-5.1 9.2 5.1 9.2 5.1-3.1 5.1-9.2 5.1S2.8 12 2.8 12Z"/><circle cx="12" cy="12" r="2.7"/><path d="M7.2 4.4 8 6m8.8-1.6L16 6"/></symbol>
+  <symbol id="schat-group" viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="2.7"/><circle cx="5.5" cy="9.3" r="2"/><circle cx="18.5" cy="9.3" r="2"/><path d="M7.3 19c.3-3.7 1.9-5.6 4.7-5.6s4.4 1.9 4.7 5.6M1.8 18c.2-2.7 1.4-4 3.6-4 1 0 1.8.2 2.4.7M22.2 18c-.2-2.7-1.4-4-3.6-4-1 0-1.8.2-2.4.7"/></symbol>
+  <symbol id="schat-camera" viewBox="0 0 24 24"><path d="M4.4 7.2h3l1.2-2h6.8l1.2 2h3A2.4 2.4 0 0 1 22 9.6v7.7a2.4 2.4 0 0 1-2.4 2.4H4.4A2.4 2.4 0 0 1 2 17.3V9.6a2.4 2.4 0 0 1 2.4-2.4Z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="schat-heart" viewBox="0 0 24 24"><path d="M20.6 5.8c-2.1-2.1-5.4-1.7-7.2.4L12 7.8l-1.4-1.6C8.8 4.1 5.5 3.7 3.4 5.8c-2.3 2.3-2 5.8.1 7.9L12 21l8.5-7.3c2.1-2.1 2.4-5.6.1-7.9Z"/></symbol>
+  <symbol id="schat-heart-filled" viewBox="0 0 24 24"><path class="fill" d="M20.6 5.8c-2.1-2.1-5.4-1.7-7.2.4L12 7.8l-1.4-1.6C8.8 4.1 5.5 3.7 3.4 5.8c-2.3 2.3-2 5.8.1 7.9L12 21l8.5-7.3c2.1-2.1 2.4-5.6.1-7.9Z"/></symbol>
+  <symbol id="schat-comment" viewBox="0 0 24 24"><path d="M4.6 4.7h14.8A2.6 2.6 0 0 1 22 7.3v8a2.6 2.6 0 0 1-2.6 2.6h-7.8L6 21v-3.1H4.6A2.6 2.6 0 0 1 2 15.3v-8a2.6 2.6 0 0 1 2.6-2.6Z"/><path d="M7.2 11.3h.1m4.6 0h.1m4.6 0h.1"/></symbol>
+  <symbol id="schat-chevron-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="schat-back" viewBox="0 0 24 24"><path d="m14.8 5-7 7 7 7"/></symbol>
+  <symbol id="schat-more" viewBox="0 0 24 24"><circle class="fill" cx="5" cy="12" r="1.4"/><circle class="fill" cx="12" cy="12" r="1.4"/><circle class="fill" cx="19" cy="12" r="1.4"/></symbol>
+  <symbol id="schat-emoji" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle class="fill" cx="9" cy="10" r="1"/><circle class="fill" cx="15" cy="10" r="1"/><path d="M8.2 14.2c1 1.2 2.3 1.8 3.8 1.8s2.8-.6 3.8-1.8"/></symbol>
+  <symbol id="schat-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" class="fill"/></symbol>
+  <symbol id="schat-send" viewBox="0 0 24 24"><path d="m4 4 16 8-16 8 2.6-8L4 4Z"/><path d="M6.6 12H20"/></symbol>
+  <symbol id="schat-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="schat-lock" viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="10" rx="3"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/><circle class="fill" cx="12" cy="15" r="1.2"/></symbol>
+  <symbol id="schat-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.1M12 19.1v2.1M2.8 12h2.1M19.1 12h2.1M5.5 5.5 7 7M17 17l1.5 1.5M18.5 5.5 17 7M7 17l-1.5 1.5"/></symbol>
+  <symbol id="schat-memory" viewBox="0 0 24 24"><path d="M12 3.2a4 4 0 0 1 4 4v.4a3.6 3.6 0 0 1 2.2 5.9A4.2 4.2 0 0 1 14 20.8h-2V3.2Z"/><path d="M12 3.2a4 4 0 0 0-4 4v.4a3.6 3.6 0 0 0-2.2 5.9A4.2 4.2 0 0 0 10 20.8h2M8 8.2c1.7 0 2.7.8 3 2.3m5-2.3c-1.7 0-2.7.8-3 2.3M7.3 15.1c2 0 3.2 1 3.5 2.8m5.9-2.8c-2 0-3.2 1-3.5 2.8"/></symbol>
+</svg>
