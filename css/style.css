@@ -275,11 +275,37 @@ details.sec .cb{padding:4px 16px 16px}
 
 /* ============ 列表置顶（任务4） ============ */
 .row.pinned{border-color:rgba(141,232,211,.35);background:linear-gradient(110deg,rgba(141,232,211,.10),rgba(255,255,255,.025))}
+
+/* ============ 我的名片（角色页「我」卡片 + 编辑页） ============ */
+.mecard{display:flex;align-items:center;gap:12px;width:calc(100% - 36px);margin:14px 18px 0;text-align:left;background:linear-gradient(110deg,rgba(141,232,211,.12),rgba(119,184,255,.10));border:1px solid var(--stroke);border-radius:18px;padding:13px 16px;cursor:pointer;color:var(--text)}
+.mecard:active{background:var(--glass)}
+.mecard .meava{flex:none;width:46px;height:46px;border-radius:999px;overflow:hidden}
+.mecard .meava img{width:100%;height:100%;object-fit:cover;display:block}
+.mecard .memid{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.mecard .memid b{font-size:15px;font-weight:600}
+.mecard .memid small{font-size:11px;color:var(--secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meprofile{padding:16px 18px}
+.meprofile .mp-ava{width:78px;height:78px;margin:4px auto 18px;border-radius:999px;overflow:hidden;border:1px solid var(--stroke)}
+.meprofile .mp-ava img{width:100%;height:100%;object-fit:cover;display:block}
+.mp-field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.mp-label{font-size:12px;color:var(--secondary)}
+.mp-field input,.mp-field textarea{width:100%;box-sizing:border-box;border:1px solid var(--stroke);border-radius:14px;padding:11px 13px;font-size:14px;background:var(--glass-soft);color:var(--text);outline:none;font-family:inherit}
+.mp-field input:focus,.mp-field textarea:focus{border-color:var(--active-stroke)}
+.mp-field textarea{resize:none;line-height:1.5}
+.mp-hint{font-size:11px;color:var(--tertiary);line-height:1.7;text-align:center;margin-top:4px}
+
+/* ============ 窥屏消息头像顶部对齐（任务4）：头像与气泡顶部持平，不被拉伸、不漂移 ============ */
+#peekScroll .msg{align-items:flex-start}
+#peekScroll .msg .ava{align-self:flex-start;flex:0 0 28px}
+/* 头像一律 1:1 + 居中裁切 + 正圆（陆野头像修复加固） */
+.avatar img,.msg .ava img,.profile .bava img,.mava img,.peer-ava .avatar img{aspect-ratio:1/1;object-fit:cover;border-radius:999px}
 .pinmark{display:inline-flex;align-items:center;vertical-align:-1px;margin-right:2px}
 .row .gtag{display:inline-block;margin-left:6px;padding:1px 6px;border:1px solid rgba(119,184,255,.4);border-radius:7px;font-size:8px;color:var(--blue);vertical-align:1px}
-.gavastack{display:flex;flex:none;width:48px}
-.gavastack .avatar{width:34px;height:34px;border:2px solid #202941}
-.gavastack .avatar+.avatar{margin-left:-14px}
+.row .gava{width:48px;height:48px;flex:none;border-radius:14px;border:1px solid var(--stroke);overflow:hidden;background:var(--glass-soft);padding:1px;box-sizing:border-box}
+.row .gava .gava-grid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:1px;width:100%;height:100%}
+.row .gava .cell{overflow:hidden;border-radius:2px;background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;min-width:0;min-height:0}
+.row .gava .cell img{width:100%;height:100%;object-fit:cover;display:block}
+.row .gava .cellinit{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:600}
 
 /* ============ 群公告与成员面板（任务6/10） ============ */
 .anno{background:var(--glass-soft);border:1px solid var(--stroke);border-radius:14px;padding:10px 12px;font-size:12px;color:var(--secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word}
