@@ -15,6 +15,7 @@
   const sync = isNode ? require('./sync.js') : G.sync;
   const photos = isNode ? require('./photos.js') : G.photos;
   const cm = isNode ? require('./charmem.js') : G.charmem;
+  const exlex = isNode ? require('./extreme_lex.js') : G.exlex;
 
   const engine = {};
 
@@ -257,6 +258,16 @@
     });
   }
 
+  /* 极端词库注入（v79）：陆野/沈知意 100% 专属词库，其他角色（齐越除外）75% 概率；
+   * 全局语气填充库 100%。全部走 API 生成，词库只作语感/密度参考。 */
+  function lexInject(loverId, persona, heat) {
+    if (!exlex || !exlex.mainInject) return Promise.resolve('');
+    return store.get('scene_' + loverId, null).then(function (sc) {
+      const stage = (sc && sc.stage != null) ? sc.stage : null;
+      return exlex.mainInject(loverId, persona, heat, stage) || '';
+    });
+  }
+
   /* 组装动态层 ctx */
   function buildCtx(loverId, extra) {
     return Promise.all([
@@ -289,6 +300,12 @@
             }).then(function (ctx2) {
               if (heat >= 2 && st.intimLib !== false) return sceneGuide(loverId, ctx2);
               return ctx2;
+            }).then(function (ctx3) {
+              /* 极端词库+语气填充注入（heat>=1 起）：100% API 生成，词库只作参考 */
+              return lexInject(loverId, persona, heat).then(function (inj) {
+                if (inj) ctx3.extra = (ctx3.extra ? ctx3.extra + '\n' : '') + inj;
+                return ctx3;
+              });
             });
           }
           return ctx;
