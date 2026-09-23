@@ -58,9 +58,9 @@
   };
   engine.activeLover = null;      // 当前打开的聊天（未读判断用）
 
-  /* 私聊回复延迟记忆（任务：5-10 秒弹性随机，不连续重复同一极端值；测试可缩区间） */
+  /* 私聊回复延迟记忆（任务：3-5 秒弹性随机，不连续重复同一极端值；测试可缩区间） */
   const replyDelayMem = {};
-  engine._REPLY_DELAY = [5000, 10000];
+  engine._REPLY_DELAY = [3000, 5000];
   engine._replyDelay = function (loverId) {
     const d = util.elasticRand(engine._REPLY_DELAY[0], engine._REPLY_DELAY[1], replyDelayMem[loverId]);
     replyDelayMem[loverId] = d;
@@ -410,7 +410,7 @@
             return state.result;
           }
 
-          /* 「对方正在输入…」停顿后再发请求：5-10 秒弹性随机（模拟真人看到→想→打字），
+          /* 「对方正在输入…」停顿后再发请求：3-5 秒弹性随机（模拟真人看到→想→打字），
            * 期间输入中动画保持，不连续重复同一极端值 */
           const delay = engine._replyDelay(loverId);
           startTyping();
