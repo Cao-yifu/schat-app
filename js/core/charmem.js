@@ -53,6 +53,7 @@
     '阿杰-乐恩': [1, '运动圈，骑车打球偶尔碰见'],
     '齐越-乐恩': [1, '你带学弟回过家，见过'],
     'Allen-乐恩': [1, '一个是你的学长一个是学弟，你攒局见过'],
+    '王忆可-Allen': [3, '大学时的学长学妹，现在是长期炮友，见面就是为了打炮', '长期炮友，见面就是为了打炮'],
   };
 
   /* 键名归一化：REL_INIT 按「排序后组合」索引（防写法与 pairKey 不一致） */
@@ -71,12 +72,22 @@
     return p ? (p.nickname || p.name) : pid;
   }
 
+  /* 亲密真相种子：REL_INIT 里 level>=3 且带真相句（第三元素）的关系，把真相写进 pairmem（只种一次，src=init） */
+  function seedTruth(a, b, init) {
+    if (!(init && init[2])) return Promise.resolve();
+    const k = 'pairmem:' + pairKey(a, b);
+    return store.get(k, []).then(function (arr) {
+      if (arr.some(function (e) { return e.src === 'init'; })) return;
+      return cm.pairEntry(a, b, init[2], { layer: 'truth', level: 3, impact: 'high', src: 'init' });
+    });
+  }
+
   /* ================= 熟悉度 ================= */
   cm.fam = function (a, b) {
     return store.get('pairfam:' + pairKey(a, b), null).then(function (f) {
       if (f) return f;
       const init = REL_NORM[pairKey(a, b)];
-      if (init) return { level: init[0], why: init[1], ts: 0 };
+      if (init) return seedTruth(a, b, init).then(function () { return { level: init[0], why: init[1], ts: 0 }; });
       return { level: 0, why: '', ts: 0 };
     });
   };
@@ -118,7 +129,7 @@
   /* 我牵线：私聊里同时提到两个角色名 → 两人熟悉度 +1 */
   cm.matchmake = function (names) {
     const ids = [];
-    (G.sync && G.sync.list ? G.sync.list() : []).forEach(function (p) {
+    (G.sync && G.sync.list ? G.sync.list({ all: true }) : []).forEach(function (p) {
       if (names.indexOf(p.name) >= 0 || names.indexOf(p.nickname) >= 0) ids.push(p.id);
     });
     const uniq = ids.filter(function (v, i) { return ids.indexOf(v) === i; });
@@ -438,6 +449,7 @@
     '梁川': [[0.6, '冷处理'], [0.2, '生气'], [0.2, '道歉']],
     '阿杰': [[0.4, '生气'], [0.3, '委屈'], [0.3, '难过']],
     '乐恩': [[0.5, '委屈'], [0.3, '难过'], [0.2, '道歉']],
+    '王忆可': [[0.5, '生气'], [0.3, '委屈'], [0.2, '不问']],
   };
   /* 无 Key 回退话术池（语料池参考，只用于被踢事件这一条场景，不用于普通对话） */
   cm.KICK_POOL = {
@@ -476,6 +488,11 @@
     'Allen': {
       难过: ['…被你踢出来了。挺突然的。', '唉，行吧。'], 委屈: ['我干啥了呀，你把我移出去。'],
       道歉: ['是我说错啥了吗，我给你道歉。'], 生气: ['至于吗。'],
+    },
+    '王忆可': {
+      生气: ['踢我？行啊，你等着。', '呵，把我踢了是吧，有你的。'],
+      委屈: ['我哪儿招你了，说清楚。'],
+      不问: ['行。', '哦。'],
     },
   };
   cm.pickKickStyle = function (pid, situation) {
