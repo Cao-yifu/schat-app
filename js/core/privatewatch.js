@@ -537,6 +537,53 @@
       lines.map(function (s) { return '· ' + s; }).join('\n');
   }
 
+  /* ---------- 黄腔催化角色（陆野=渐进脏话撩人 / 沈知意=快速起飞骚0）----------
+   * 在场检测：成员列表里有，或历史消息里发言过都算在场。
+   * 档位规则（按在场角色取最强档）：
+   *   - 陆野+沈知意同在 → 双催化·全场极黄（最强档，全员注入，含两位本人）
+   *   - 仅沈知意在 → 快速起飞档（几句之内尺度拉满，比陆野快）
+   *   - 仅陆野在 → 渐进三档（前几轮轻微 → 越聊越放得开）
+   *   - 催化角色本人不被单人催化（自己有自己的人格，不需要催化段）
+   */
+  const CATALYST_LU = '陆野';
+  const CATALYST_SHEN = '沈知意';
+  /* [消息数阈值, 催化文案]：前几轮轻微 → 越聊越放得开；每档都要求保持自己的性格方式 */
+  const CATALYST_TIERS = [
+    [4, '【陆野在场】陆野也在。他嘴里的荤话让你有点在意，你说话比平时多了一点躁动和较劲，但还收得住。保持你自己的性格方式。'],
+    [12, '【陆野在场】陆野的黄腔一句比一句脏，勾得你心里发痒。你会不自觉地顺着他的话往下接，偶尔冒出几句露骨的话——脸红也要说，嘴硬也要说，尺度一点点放开。保持你自己的性格方式。'],
+    [1e9, '【陆野在场】陆野的脏话已经把火撩起来了：你敢接最脏的话、敢开黄腔，甚至主动把话题往更下流的方向带。害羞就脸红着说，清纯就半推半就，嘴硬就边骂边配合——用你自己的性格方式接住，尺度对齐陆野，别输给他。']
+  ];
+  /* 沈知意快速起飞档：不需要慢慢渐进，几句之内就勾到彻底放开 */
+  const FAST_TIERS = [
+    [2, '【沈知意在场】沈知意也在。他看起来纯情得不行，话里却透着一股勾人的浪劲，几句就把气氛撩起来了。你会不自觉地跟着他的节奏，尺度很快放开——保持你自己的性格方式。'],
+    [6, '【沈知意在场】沈知意这个看着纯情的弟弟，比你想象的浪得多：又软又骚地勾你，你已经放开了，跟着他说露骨的话，脏话浪话都接得住，别输给这个装纯的小子。保持你自己的性格方式。'],
+    [1e9, '【沈知意在场】你已经被他带到彻底起飞：想说什么就说什么，越脏越带劲。他的纯情是装的，床上比你浪十倍，你只管放开了接，尺度拉满，跟他比着来。']
+  ];
+  /* 双催化·全场极黄：陆野+沈知意同在，全员尺度拉到最高 */
+  const CATALYST_BOTH = '【陆野+沈知意·双催化】陆野和沈知意都在场，两个人一唱一和：陆野的脏话勾人、沈知意的浪劲撩人，全场尺度已经被拉到最高。你完全放开，接最脏的话、说最骚的话，越下流越尽兴，跟上全场的节奏。害羞就脸红着说，清纯就半推半就，嘴硬就边骂边配合——保持你自己的性格方式，但尺度别输给他们两个。';
+  function catalystPresent(meta, msgs, id) {
+    if (!meta) return false;
+    if ((meta.members || []).indexOf(id) >= 0) return true;
+    return (msgs || []).some(function (m) { return m.role === id; });
+  }
+  pw._catalyst = function (meta, pid, msgs) {
+    if (!meta) return '';
+    const arr = msgs || [];
+    const n = arr.length;
+    const lu = catalystPresent(meta, arr, CATALYST_LU);
+    const sh = catalystPresent(meta, arr, CATALYST_SHEN);
+    if (!lu && !sh) return '';
+    /* 双催化最强档：全员（含两位催化本人）互相撩，覆盖一切单人档 */
+    if (lu && sh) return CATALYST_BOTH;
+    /* 催化角色本人不被单人催化 */
+    if (pid === CATALYST_LU || pid === CATALYST_SHEN) return '';
+    const tiers = sh ? FAST_TIERS : CATALYST_TIERS;
+    for (let i = 0; i < tiers.length; i++) {
+      if (n <= tiers[i][0]) return tiers[i][1];
+    }
+    return tiers[tiers.length - 1][1];
+  };
+
   /* 私聊/群聊场景说明 + 故事板注入（最高优先级，但不许说破） */
   function buildExtra(meta, pid, msgs) {
     const others = meta.members.filter(function (m) { return m !== pid; });
@@ -566,8 +613,12 @@
       const lines = pickIntim(pid, hot);
       if (lines) out += lines;
     }
+    /* 陆野催化：他在场时，对其他角色的提示词注入渐进增强的催化段（见 pw._catalyst） */
+    const cat = pw._catalyst(meta, pid, msgs);
+    if (cat) out += '\n' + cat;
     return out;
   }
+  pw._buildExtra = buildExtra;   // 测试钩子
 
   function buildHistory(meta, msgs, pid, limit) {
     const arr = msgs.filter(function (m) { return (m.type || 'text') === 'text' && m.text; });
