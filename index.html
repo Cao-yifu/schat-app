@@ -9,11 +9,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Schat">
 <meta name="theme-color" content="#090D1B">
-<link rel="manifest" href="./manifest.webmanifest?v=83">
-<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=83">
-<link rel="icon" type="image/png" href="./icons/icon-192.png?v=83">
-<link rel="stylesheet" href="./css/schat-icons.css?v=83">
-<link rel="stylesheet" href="./css/style.css?v=83">
+<link rel="manifest" href="./manifest.webmanifest?v=84">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=84">
+<link rel="icon" type="image/png" href="./icons/icon-192.png?v=84">
+<link rel="stylesheet" href="./css/schat-icons.css?v=84">
+<link rel="stylesheet" href="./css/style.css?v=84">
 </head>
 <body>
 <main class="stage">
@@ -39,6 +39,11 @@
   <div id="page-roles" class="page">
     <div class="hd"><div class="ttl">角色</div><div class="acts"></div></div>
     <div class="scroll">
+      <button class="mecard" id="meCardBtn">
+        <span class="meava"><img id="meCardAva" alt="我"></span>
+        <span class="memid"><b id="meCardName">我</b><small id="meCardDesc">设置你的名字与自我介绍</small></span>
+        <span class="pwarrow"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-chevron-right"></use></svg></span>
+      </button>
       <div class="pwent">
         <button class="pwent-btn" id="pwListBtn"><span class="pwic"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-eye-link"></use></svg></span><span class="pwt"><b>偷窥 / 接管</b><small>挑两个角色，看 TA 们自己私聊</small></span><span class="pwarrow"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-chevron-right"></use></svg></span></button>
         <button class="pwent-btn" id="pwGroupBtn"><span class="pwic"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-group"></use></svg></span><span class="pwt"><b>建群</b><small>你和 TA 们一起群聊（或纯围观幽灵群）</small></span><span class="pwarrow"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-chevron-right"></use></svg></span></button>
@@ -52,6 +57,29 @@
   <div id="page-moments" class="page">
     <div class="hd"><div class="ttl">朋友圈</div><div class="acts"><button class="icon-btn" id="momentsCamBtn" aria-label="发布"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-camera"></use></svg></button></div></div>
     <div class="scroll"><div class="moments" id="momentsList"></div></div>
+  </div>
+
+  <!-- 我的名片编辑页 -->
+  <div id="page-me" class="page">
+    <div class="hd">
+      <button class="icon-btn" id="meBackBtn" aria-label="返回"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-back"></use></svg></button>
+      <div class="ttl">我的名片</div>
+      <div class="acts"></div>
+    </div>
+    <div class="scroll">
+      <div class="meprofile">
+        <div class="mp-ava"><img id="mePageAva" alt="我"></div>
+        <label class="mp-field">
+          <span class="mp-label">我的名字</span>
+          <input id="meNameInp" maxlength="12" placeholder="角色们将用这个名字称呼你">
+        </label>
+        <label class="mp-field">
+          <span class="mp-label">个性化描述</span>
+          <textarea id="meDescInp" rows="5" maxlength="200" placeholder="介绍一下自己：我是做设计的，28岁，喜欢熬夜打游戏…"></textarea>
+        </label>
+        <div class="mp-hint" id="meSaveHint">改动自动保存，即时生效。角色们会按你的名字和描述来认识你、称呼你；留空则维持原样。</div>
+      </div>
+    </div>
   </div>
 
   <!-- 底部标签栏：聊天 / 角色 / 朋友圈 / 我的 -->
@@ -295,22 +323,22 @@
 </section>
 </main>
 
-<script src="./js/core/personas.js?v=83"></script>
-<script src="./js/core/util.js?v=83"></script>
-<script src="./js/core/store.js?v=83"></script>
-<script src="./js/core/timeparse.js?v=83"></script>
-<script src="./js/core/prompt.js?v=83"></script>
-<script src="./js/core/api.js?v=83"></script>
-<script src="./js/core/sync.js?v=83"></script>
-<script src="./js/core/photo_pools.js?v=83"></script>
-<script src="./js/core/photos.js?v=83"></script>
-<script src="./js/core/intim_corpus.js?v=83"></script>
-<script src="./js/core/extreme_lex.js?v=83"></script>
-<script src="./js/core/charmem.js?v=83"></script>
-<script src="./js/core/engine.js?v=83"></script>
-<script src="./js/core/moments.js?v=83"></script>
-<script src="./js/core/privatewatch.js?v=83"></script>
-<script src="./js/ui/app.js?v=83"></script>
-<script src="./js/main.js?v=83"></script>
+<script src="./js/core/personas.js?v=84"></script>
+<script src="./js/core/util.js?v=84"></script>
+<script src="./js/core/store.js?v=84"></script>
+<script src="./js/core/timeparse.js?v=84"></script>
+<script src="./js/core/prompt.js?v=84"></script>
+<script src="./js/core/api.js?v=84"></script>
+<script src="./js/core/sync.js?v=84"></script>
+<script src="./js/core/photo_pools.js?v=84"></script>
+<script src="./js/core/photos.js?v=84"></script>
+<script src="./js/core/intim_corpus.js?v=84"></script>
+<script src="./js/core/extreme_lex.js?v=84"></script>
+<script src="./js/core/charmem.js?v=84"></script>
+<script src="./js/core/engine.js?v=84"></script>
+<script src="./js/core/moments.js?v=84"></script>
+<script src="./js/core/privatewatch.js?v=84"></script>
+<script src="./js/ui/app.js?v=84"></script>
+<script src="./js/main.js?v=84"></script>
 </body>
 </html>
