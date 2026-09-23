@@ -53,7 +53,7 @@
       });
     }
     if (id === 'page-moments') { renderMoments(); if (G.moments) G.moments.autoTick(); }
-    if (id === 'page-roles') renderRoles();
+    if (id === 'page-roles') { renderRoles(); renderMeCard(); }
   }
 
   function sheet(id, show) {
@@ -154,12 +154,17 @@
           row.className = 'row';
           row.setAttribute('data-name', meta.groupName || '群聊');
           row.setAttribute('data-id', meta.id);
-          const avas = meta.members.slice(0, 3).map(function (id) {
+          /* 微信式九宫格群头像：全部成员（最多 9 个）打包进一个普通头像大小的圆角框，群名不被遮盖 */
+          const cells = meta.members.slice(0, 9).map(function (id) {
             const p = sync.get(id);
-            return p ? avatarHtml(p, 'avatar') : '<div class="avatar" style="background:#44506e">?</div>';
+            return p
+              ? '<span class="cell">' + (p.avatar && p.avatar.indexOf('data:image/') === 0
+                ? '<img src="' + p.avatar + '" alt="">'
+                : '<span class="cellinit" style="background:' + (p.avatarColor || '#44506e') + '">' + esc((p.name || '?')[0]) + '</span>') + '</span>'
+              : '<span class="cell"><span class="cellinit" style="background:#44506e">?</span></span>';
           }).join('');
           const pv = last ? PW2.dispName(meta, last.role) + '：' + (last.text || '').slice(0, 30) : '（还没有消息）';
-          row.innerHTML = '<div class="gavastack">' + avas + '</div>' +
+          row.innerHTML = '<div class="gava" aria-label="群聊"><div class="gava-grid">' + cells + '</div></div>' +
             '<div class="mid"><div class="nm">' + esc(meta.groupName || '群聊') + '<span class="gtag">群聊</span></div>' +
             '<div class="pv">' + esc(pv) + '</div></div>' +
             '<div class="tm">' + esc(util.listTime(meta.lastGen || meta.createdAt)) + '</div>';
@@ -449,6 +454,40 @@
       box.appendChild(c);
     });
   }
+
+  /* ---------- 我的名片（角色页「我」卡片 + 编辑页，store 键 myprofile={name,desc}） ---------- */
+  function renderMeCard() {
+    const btn = $('meCardBtn');
+    if (!btn) return;
+    const ava = $('meCardAva');
+    if (ava) ava.src = MY_AVATAR;
+    return store.get('myprofile', null).then(function (mp) {
+      const nm = mp ? String(mp.name || '').trim() : '';
+      const ds = mp ? String(mp.desc || '').trim() : '';
+      const nmEl = $('meCardName');
+      if (nmEl) nmEl.textContent = nm || '我';
+      const dEl = $('meCardDesc');
+      if (dEl) dEl.textContent = ds ? ds.slice(0, 24) : '设置你的名字与自我介绍';
+    });
+  }
+  function openMePage() {
+    return store.get('myprofile', null).then(function (mp) {
+      const ava = $('mePageAva');
+      if (ava) ava.src = MY_AVATAR;
+      $('meNameInp').value = mp ? String(mp.name || '') : '';
+      $('meDescInp').value = mp ? String(mp.desc || '') : '';
+      $('meSaveHint').textContent = '改动自动保存，即时生效';
+      showPage('page-me');
+    });
+  }
+  const saveMeProfile = util.debounce(function () {
+    const name = $('meNameInp').value.trim().slice(0, 12);
+    const desc = $('meDescInp').value.trim().slice(0, 200);
+    return store.set('myprofile', { name: name, desc: desc }).then(function () {
+      $('meSaveHint').textContent = '已自动保存';
+      return renderMeCard();
+    });
+  }, 400);
 
   function momentDom(m, personas) {
     const isMe = m.pid === 'me';
@@ -1558,6 +1597,11 @@
       } else if (profileOrigin === 'chat') showPage('page-chat');
       else showPage('page-roles');
     });
+    /* 我的名片：角色页入口 + 编辑页（自动保存） */
+    $('meCardBtn').addEventListener('click', function () { openMePage(); });
+    $('meBackBtn').addEventListener('click', function () { showPage('page-roles'); });
+    $('meNameInp').addEventListener('input', saveMeProfile);
+    $('meDescInp').addEventListener('input', saveMeProfile);
     $('onboardOk').addEventListener('click', function () {
       $('onboard').classList.remove('show');
       store.set('onboarded', 1);
