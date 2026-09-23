@@ -7,8 +7,9 @@
  *   msgs:pw:<sid>      —— 会话消息（复用 store.msgs 的串行链）
  *
  * 节奏规则：
- *   pacing = auto（默认）  —— 窥屏页开着 = 实时（4-10 秒/条，带输入中停顿）；没在看 = 慢聊
- *   pacing = realtime      —— 强制实时（App 开着就一直 4-10 秒来回）
+ *   pacing = auto（默认）  —— 窥屏页开着 = 实时（双人 5-10 秒/条；群聊 5-120 秒/轮、每轮 1-3 人，带输入中停顿）；
+ *                            没在看 = 慢聊
+ *   pacing = realtime      —— 强制实时（App 开着就一直聊，同上节奏）
  *   pacing = slow          —— 强制慢聊（几十秒~几天随机间隔）
  *   没在看期间的慢聊：打开窥屏页时按「离开时长 + 随机间隔 + 跳过睡眠」补齐。
  *
@@ -54,7 +55,13 @@
 
   /* 节奏参数（测试可覆盖 _INTERVALS） */
   pw._INTERVALS = {
-    rt: [4000, 10000],           // 实时：条与条之间 4-10 秒
+    rt: [5000, 10000],           // 双人实时：条与条之间 5-10 秒弹性随机（任务7）
+    rtGroup: [5000, 120000],     // 群聊实时：5-120 秒区间弹性变化（任务6）
+    speedTiers: {                // 角色回复速度档（persona.replySpeed，缺省 mid）
+      fast: [5000, 15000],       // 爱秒回的：5-15 秒
+      mid: [8000, 40000],        // 一般的：8-40 秒
+      slow: [60000, 120000],     // 忙的：60-120 秒
+    },
     typing: [1200, 2800],        // 「正在输入…」停顿 1.2-2.8 秒
     slowSegs: [                  // 慢聊间隔分布：[min,max,累计概率]
       [30000, 480000, 0.60],     // 60%：30秒 ~ 8分钟
@@ -65,6 +72,12 @@
     maxBackfill: 8,              // 一次回填最多补 8 条（控成本）
     backfillMinGap: 90000,       // 离开不足 90 秒不补课
   };
+  pw._GROUP = {                  // 群聊轮次参数（测试可覆盖）
+    skipProb: 0.10,              // 每轮 10% 概率没人想接：跳过这一轮，下一轮再来
+    weights: [0.45, 0.85, 1.0],  // 每轮回复人数权重：1人45% / 2人40% / 3人15%
+    stagger: [1200, 4000],       // 同轮多人先后回复的间隔
+  };
+  const lastRt = {};             // sid -> 上一轮实时延迟（防连续重复极端值）
   pw._sleep = [2, 7];            // 全局夜间睡觉窗口 [起,止)（慢聊/回填用；实时模式无视）
   pw._perSleep = null;           // 测试覆盖：function(ts, pid) -> bool
 
@@ -135,6 +148,37 @@
       if (r < seg[2]) return util.randInt(seg[0], seg[1]);
     }
     return util.randInt(pw._INTERVALS.slowSegs[3][0], pw._INTERVALS.slowSegs[3][1]);
+  };
+
+  /* 角色回复速度档（任务6）：persona.replySpeed = fast|mid|slow，缺省 mid */
+  pw._groupSpeed = function (pid) {
+    const p = pid ? sync.get(pid) : null;
+    const t = (p && p.replySpeed) || 'mid';
+    return pw._INTERVALS.speedTiers[t] || pw._INTERVALS.speedTiers.mid;
+  };
+
+  /* 实时延迟（任务6/7）：
+   * 双人 = 5-10 秒弹性随机；群聊 = 上一轮最后发言人的速度档内随机 + 全局抖动，
+   * 钳制在 5-120 秒；两种都保证不连续重复同一值/同一极端值（节奏有起伏）。 */
+  pw._rtDelay = function (meta) {
+    const last = lastRt[meta.id];
+    let d;
+    if (meta.kind !== 'group') {
+      d = util.elasticRand(pw._INTERVALS.rt[0], pw._INTERVALS.rt[1], last);
+    } else {
+      const LO = pw._INTERVALS.rtGroup[0], HI = pw._INTERVALS.rtGroup[1];
+      const span = HI - LO;
+      const edge = function (x) { return span > 0 && (x <= LO + span * 0.15 || x >= HI - span * 0.15); };
+      const once = function () {
+        const tier = pw._groupSpeed(meta.lastSpeaker);
+        const jitter = util.randInt(-5000, 8000); // 全局抖动，让节奏有起伏
+        return Math.max(LO, Math.min(HI, util.randInt(tier[0], tier[1]) + jitter));
+      };
+      d = once();
+      for (let i = 0; i < 10 && last != null && (d === last || (edge(d) && edge(last))); i++) d = once();
+    }
+    lastRt[meta.id] = d;
+    return d;
   };
 
   /* ---------- 存储 ---------- */
@@ -305,6 +349,7 @@
       pacing: 'auto',          // auto | realtime | slow
       paused: false,
       takenBy: null,           // 被用户接管的角色 id；null = 旁观
+      lastSpeaker: null,       // 群聊：上一轮最后发言人（决定下一轮速度档）
       genOff: null,            // 'nokey' | 'err' | null —— 生成被关掉的信号
       createdAt: now,
       lastGen: now,
@@ -328,6 +373,7 @@
     if (watching === sid) watching = null;
     const meta = metaCache[sid];
     delete metaCache[sid];
+    delete lastRt[sid];
     if (meta) cm.onPause(meta); // 关闭前提炼一次记忆（异步，不阻塞删除）
     return store.del('pwmeta:' + sid)
       .then(function () { return store.clearMsgs(pw.MSG_KEY(sid)); })
@@ -599,6 +645,8 @@
     } else {
       out += '【群聊场景】你现在在一个微信群里（群名「' + (meta.groupName || '群聊') + '」），成员：你、' + otherNames.join('、') +
         '、还有他（你喜欢的人）。说话要有来回：接住上一条说话人的话再往下说，可以点名、可以插话，按你的性格来，别磨成温吞水。';
+      /* 选择性回应（任务6）：别逐条回应、别点名问候一圈，只接自己在意的话 */
+      out += '\n【选择性回应】不要针对群里每个人都回复、不要逐条回应、不要挨个点名。你自己决定回不回、回什么：只挑你真正在意、有话想说的话题接一句，就着话题说个大概意思就行；没感觉、没兴趣就不回这一轮，别硬凑。回你的一条自然发言，不必面面俱到。';
     }
     if (meta.storyboard) {
       out += '\n【故事板】（最高优先级，悄悄引导你：你发言的内容、话题、态度走向都要顺着它慢慢推进，' +
@@ -630,21 +678,24 @@
   }
   pw._buildExtra = buildExtra;   // 测试钩子
 
-  function buildHistory(meta, msgs, pid, limit) {
+  function buildHistory(meta, msgs, pid, limit, myName) {
     const arr = msgs.filter(function (m) { return (m.type || 'text') === 'text' && m.text; });
     const tail = arr.slice(-(limit || 60));
     return tail.map(function (m) {
       let content = m.text;
       if (m.role !== pid) {
-        const who = m.role === 'user' ? '他' : pw.dispName(meta, m.role);
+        const who = m.role === 'user' ? (myName || '他') : pw.dispName(meta, m.role);
         content = who + '：' + content;
       }
       return { role: m.role === pid ? 'assistant' : 'user', content: content };
     });
   }
+  pw._buildHistory = buildHistory;   // 测试钩子
 
-  /* ---------- 记忆/熟悉度/补充人设注入（任务2/8/9）：故事板 > 记忆闭环 > 通用人设 ---------- */
-  function buildMemCtx(meta, pid, msgs) {
+  /* ---------- 记忆/熟悉度/补充人设/我的名片注入（任务2/8/9 + 名片任务）：
+   * 故事板 > 记忆闭环 > 通用人设；我的名片（名字+描述）贯穿所有对话面，
+   * 有我的群聊额外注入「群聊存在感」（角色认得我、接我的话、不把我当空气）。 ---------- */
+  function buildMemCtx(meta, pid, msgs, mp) {
     const others = meta.members.filter(function (m) { return m !== pid; });
     return Promise.all([
       cm.inject({ pid: pid, others: others, sid: meta.id, face: meta.kind === 'group' ? 'group' : 'dual', msgs: msgs }),
@@ -657,9 +708,21 @@
       if (r[2]) {
         more += '\n【用户给你的补充人设】（高于默认人设；与故事板/记忆闭环冲突时，以后者为准）\n' + r[2];
       }
+      /* 我的名片：双人/群聊都注入名字+描述；有我的群聊再加群聊存在感（双人无我的局不注入存在感） */
+      if (mp) {
+        if (meta.kind === 'group' && meta.me !== false) {
+          more += prompt.pwPresenceBlock(mp);
+          const ds = String(mp.desc || '').trim();
+          if (ds) more += '\n【关于他】' + ds + '。照这个认知他、跟他聊。';
+        } else {
+          const blk = prompt.myProfileBlock(mp);
+          if (blk) more += blk;
+        }
+      }
       return more;
     }).catch(function () { return ''; });
   }
+  pw._buildMemCtx = buildMemCtx;   // 测试钩子
 
   /* ---------- 生成一条（100% 走现有 API 管线） ---------- */
   function genOne(sid, meta, pid, ts) {
@@ -673,15 +736,17 @@
         return null;
       }
       return Promise.all([
-        pw.msgs(sid), sync.rs(pid), sync.ls(pid), sync.offset(pid),
+        pw.msgs(sid), sync.rs(pid), sync.ls(pid), sync.offset(pid), store.get('myprofile', null),
       ]).then(function (r) {
         const msgs = r[0];
+        const mp = r[4] || null;
         const ctx = { rs: r[1], ls: r[2], offsetMs: r[3], extra: buildExtra(meta, pid, msgs) };
-        return buildMemCtx(meta, pid, msgs).then(function (mem) {
+        return buildMemCtx(meta, pid, msgs, mp).then(function (mem) {
           if (mem) ctx.extra += '\n' + mem;
           const system = prompt.buildSystem(persona, ctx);
+          const myName = mp && String(mp.name || '').trim();
           const messages = [{ role: 'system', content: system }]
-            .concat(buildHistory(meta, msgs, pid, st.historyN || 60));
+            .concat(buildHistory(meta, msgs, pid, st.historyN || 60, myName));
           return api.chat({
             baseURL: st.baseURL, apiKey: st.apiKey, model: st.model,
             temperature: st.temperature,
@@ -876,10 +941,69 @@
     if (!realtime && watching !== sid) return; // 没在看且非强制实时：不跑定时器，下次打开回填
     let delay;
     if (delayOverride != null) delay = delayOverride;
-    else if (realtime) delay = util.randInt(pw._INTERVALS.rt[0], pw._INTERVALS.rt[1]);
+    else if (realtime) delay = pw._rtDelay(meta); // 双人 5-10s / 群聊 5-120s 弹性（任务6/7）
     else delay = Math.max(500, (meta.lastGen || Date.now()) + pw.slowInterval() - Date.now());
     timers[sid] = setTimeout(function () { doTurn(sid); }, delay);
   }
+
+  /* 群聊一轮：随机 1-3 人回复（可先后），小概率整轮跳过；选人=随机+只选醒着的 */
+  function groupTurn(sid, meta, msgs, now) {
+    const awake = meta.members.filter(function (m) {
+      if (meta.takenBy === m) return false;
+      if (!sync.get(m)) return false;
+      return !asleepAt(now, m);
+    });
+    if (!awake.length) {
+      timers[sid] = setTimeout(function () { doTurn(sid); }, nextWakeDelay(meta, now) + util.randInt(0, 2000));
+      return Promise.resolve();
+    }
+    const last = lastSpeaker(meta, msgs);
+    const pool = awake.filter(function (m) { return m !== last; });
+    const cands = pool.length ? pool : awake;
+    /* 跳过机制：没人想接时本轮不回，下一轮再来 */
+    if (Math.random() < pw._GROUP.skipProb) {
+      armNext(sid);
+      return Promise.resolve();
+    }
+    /* 每轮回复人数：1人45% / 2人40% / 3人15% */
+    const r = Math.random();
+    let count = 1;
+    if (r >= pw._GROUP.weights[0]) count = r >= pw._GROUP.weights[1] ? 3 : 2;
+    /* 随机挑人（Fisher-Yates 洗牌取前 n 个） */
+    const picks = cands.slice();
+    for (let i = picks.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = picks[i]; picks[i] = picks[j]; picks[j] = tmp;
+    }
+    const speakers = picks.slice(0, Math.min(count, picks.length));
+    if (!speakers.length) { armNext(sid); return Promise.resolve(); }
+    busy[sid] = true;
+    const stagger = pw._GROUP.stagger;
+    let chain = Promise.resolve();
+    let lastSp = null;
+    speakers.forEach(function (sp) {
+      chain = chain.then(function () {
+        pw.hooks.onTyping(sid, sp);
+        return new Promise(function (res) { setTimeout(res, util.randInt(stagger[0], stagger[1])); })
+          .then(function () { return genOne(sid, meta, sp, Date.now()); })
+          .then(function (msg) {
+            lastSp = sp;
+            pw.hooks.onTyping(sid, null);
+            return msg;
+          });
+      });
+    });
+    return chain.then(function () {
+      busy[sid] = false;
+      meta.lastSpeaker = lastSp || meta.lastSpeaker || null; // 记录最后发言人，决定下一轮速度档
+      return saveMeta(sid).then(function () { pw.hooks.onState(sid); });
+    }, function (err) {
+      busy[sid] = false;
+      pw.hooks.onTyping(sid, null);
+      console.warn('[群聊循环]', err && err.message);
+    }).then(function () { armNext(sid); });
+  }
+  pw._groupTurn = groupTurn;   // 测试钩子
 
   function doTurn(sid) {
     const meta = metaCache[sid];
@@ -897,6 +1021,7 @@
     }
     /* 实时模式：无视全局睡眠窗口；睡着的角色这一轮不发言、醒着的继续聊 */
     return pw.msgs(sid).then(function (msgs) {
+      if (meta.kind === 'group') return groupTurn(sid, meta, msgs, now); // 群聊：每轮 1-3 人 + 跳过机制
       const sp = pickAwake(meta, msgs, now);
       if (!sp) {
         // 全睡着/只剩刚说过话的：等到最近一个醒来（或稍后重试）
