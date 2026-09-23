@@ -163,6 +163,30 @@
     });
   };
 
+  /* 我的名片注入（任务：主聊天/窥屏/群聊共用）：mp = store 里的 {name, desc}
+   * 有名字 → 要求角色用名字称呼我；没名字 → 严禁发明名字（保持现状）；两者皆空 → 不注入。 */
+  prompt.myProfileBlock = function (mp) {
+    if (!mp) return '';
+    const nm = String(mp.name || '').trim();
+    const ds = String(mp.desc || '').trim();
+    if (!nm && !ds) return '';
+    let blk = nm
+      ? '他叫' + nm + '。以后聊天用他的名字称呼他，不要再用「哥」「哥哥」「弟弟」「宝贝」这类泛称代替。'
+      : '他没跟你说过他的名字：不要发明名字、不要乱起称呼，像现在一样聊。';
+    if (ds) blk += ' 关于他：' + ds + '。照这个认知他、跟他聊。';
+    return '\n【关于他】' + blk;
+  };
+
+  /* 群聊存在感注入（有我的群）：他知道我这个人、认得我、接我的话，绝不把我当空气。
+   * 有名字用名字；没名字就用「他」，不发明名字。 */
+  prompt.pwPresenceBlock = function (mp) {
+    const nm = String((mp && mp.name) || '').trim();
+    const who = nm || '他';
+    let blk = who + '也在群里，是群里真实的一个人。你不需要主动跟他打招呼——但当他发言时，你要认得他是谁、知道他叫什么，自然地回应他、接着他的话聊，绝不能把他当旁白、空气，或对他的消息视而不见。';
+    if (nm) blk += '回应他的时候，用他的名字（或合适的亲昵称呼）称呼他。';
+    return '\n【群里还有他】' + blk;
+  };
+
   /* ---------- 回复整形与硬截断（痛点 1 的兜底） ---------- */
   prompt.sanitizeReply = function (text) {
     if (!text) return '';
