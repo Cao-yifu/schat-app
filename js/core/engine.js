@@ -594,7 +594,7 @@
   /* 消息里提到的角色（记忆检索 + 牵线：提到两个角色名 → 两人熟悉度 +1） */
   function mentionedIds(text) {
     const ids = [];
-    sync.list().forEach(function (p) {
+    sync.list({ all: true }).forEach(function (p) {
       if (text.indexOf(p.name) >= 0) ids.push(p.id);
       else if (p.nickname && p.nickname !== p.name && text.indexOf(p.nickname) >= 0) ids.push(p.id);
     });
