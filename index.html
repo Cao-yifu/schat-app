@@ -9,10 +9,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Schat">
 <meta name="theme-color" content="#090D1B">
-<link rel="manifest" href="./manifest.webmanifest?v=73">
-<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=73">
-<link rel="icon" type="image/png" href="./icons/icon-192.png?v=73">
-<link rel="stylesheet" href="./css/style.css?v=73">
+<link rel="manifest" href="./manifest.webmanifest?v=75">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=75">
+<link rel="icon" type="image/png" href="./icons/icon-192.png?v=75">
+<link rel="stylesheet" href="./css/schat-icons.css?v=75">
+<link rel="stylesheet" href="./css/style.css?v=75">
 </head>
 <body>
 <main class="stage">
@@ -27,7 +28,7 @@
       <div class="acts"></div>
     </div>
     <div class="scroll">
-      <label class="search"><span>⌕</span><input type="search" id="homeSearch" placeholder="搜索角色或对话"></label>
+      <label class="search"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-search"></use></svg><input type="search" id="homeSearch" placeholder="搜索角色或对话"></label>
       <div class="section-label"><span>最近对话</span></div>
       <div class="list" id="homeList"></div>
       <div class="verline" id="verLine"></div>
@@ -39,8 +40,8 @@
     <div class="hd"><div class="ttl">角色</div><div class="acts"></div></div>
     <div class="scroll">
       <div class="pwent">
-        <button class="pwent-btn" id="pwListBtn"><span class="pwic">👁</span><span class="pwt"><b>偷窥 / 接管</b><small>挑两个角色，看 TA 们自己私聊</small></span><span class="pwarrow">›</span></button>
-        <button class="pwent-btn" id="pwGroupBtn"><span class="pwic">👥</span><span class="pwt"><b>建群</b><small>你和 TA 们一起群聊（或纯围观幽灵群）</small></span><span class="pwarrow">›</span></button>
+        <button class="pwent-btn" id="pwListBtn"><span class="pwic"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-eye-link"></use></svg></span><span class="pwt"><b>偷窥 / 接管</b><small>挑两个角色，看 TA 们自己私聊</small></span><span class="pwarrow"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-chevron-right"></use></svg></span></button>
+        <button class="pwent-btn" id="pwGroupBtn"><span class="pwic"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-group"></use></svg></span><span class="pwt"><b>建群</b><small>你和 TA 们一起群聊（或纯围观幽灵群）</small></span><span class="pwarrow"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-chevron-right"></use></svg></span></button>
       </div>
       <div class="section-label"><span>全部角色</span></div>
       <div class="rolesgrid" id="rolesGrid"></div>
@@ -49,16 +50,16 @@
 
   <!-- 朋友圈页 -->
   <div id="page-moments" class="page">
-    <div class="hd"><div class="ttl">朋友圈</div><div class="acts"><button class="icon-btn" id="momentsCamBtn" aria-label="发布">📷</button></div></div>
+    <div class="hd"><div class="ttl">朋友圈</div><div class="acts"><button class="icon-btn" id="momentsCamBtn" aria-label="发布"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-camera"></use></svg></button></div></div>
     <div class="scroll"><div class="moments" id="momentsList"></div></div>
   </div>
 
   <!-- 底部标签栏：聊天 / 角色 / 朋友圈 / 我的 -->
   <nav class="tabbar" id="tabbar">
-    <div class="tab on" data-tab="page-home"><span class="tic">◫</span><span class="tl">聊天</span><span class="badge" id="tabUnread"></span></div>
-    <div class="tab" data-tab="page-roles"><span class="tic">👤</span><span class="tl">角色</span></div>
-    <div class="tab" data-tab="page-moments"><span class="tic">◉</span><span class="tl">朋友圈</span></div>
-    <div class="tab" data-tab="page-set"><span class="tic"><img class="nav-ava-img" id="tabMyAva" alt="我"></span><span class="tl">我的</span></div>
+    <div class="tab on" data-tab="page-home"><span class="tic"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-chat"></use></svg></span><span class="tl">聊天</span><span class="badge" id="tabUnread"></span></div>
+    <div class="tab" data-tab="page-roles"><span class="tic"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-characters"></use></svg></span><span class="tl">角色</span></div>
+    <div class="tab" data-tab="page-moments"><span class="tic"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-moments"></use></svg></span><span class="tl">朋友圈</span></div>
+    <div class="tab" data-tab="page-set"><span class="tic"><img class="nav-ava-img" id="tabMyAva" alt="我"><svg class="schat-icon nav-ava-fb" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-profile"></use></svg></span><span class="tl">我的</span></div>
   </nav>
 
   <!-- 发朋友圈面板 -->
@@ -69,7 +70,7 @@
       <textarea id="composeText" class="compose-input" placeholder="这一刻的想法…"></textarea>
       <div id="composeImgPrev" class="compose-prev" style="display:none"><img id="composeImg" alt="预览"></div>
       <div class="compose-btns">
-        <button class="gbtn" id="composePhotoBtn">📷 添加照片</button>
+        <button class="gbtn" id="composePhotoBtn"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-camera"></use></svg>添加照片</button>
         <button class="gbtn" id="composePubBtn">发布</button>
       </div>
     </div>
@@ -79,16 +80,16 @@
   <!-- 偷窥/接管：会话列表页（只留双人 + 幽灵群；有我的群聊在主列表） -->
   <div id="page-pwlist" class="page">
     <div class="hd">
-      <button class="icon-btn" id="pwListBackBtn" aria-label="返回">‹</button>
+      <button class="icon-btn" id="pwListBackBtn" aria-label="返回"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-back"></use></svg></button>
       <div class="ttl">偷窥 / 接管</div>
-      <div class="acts"><button class="icon-btn" id="pwNewBtn" aria-label="新建">＋</button></div>
+      <div class="acts"><button class="icon-btn" id="pwNewBtn" aria-label="新建"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-plus"></use></svg></button></div>
     </div>
     <div class="scroll">
       <div class="pwhint">挑两个角色，让 TA 们自己聊。你可以看戏、暂停、替其中一方说话——对方察觉不到。有你的群聊在首页聊天列表里。</div>
       <div class="list" id="pwList"></div>
       <div style="padding:8px 18px 20px">
-        <button class="gbtn" id="pwNewBtn2">＋ 新建双人私聊</button>
-        <button class="gbtn" id="pwNewGroupBtn" style="margin-top:10px">＋ 新建群聊</button>
+        <button class="gbtn" id="pwNewBtn2"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-plus"></use></svg>新建双人私聊</button>
+        <button class="gbtn" id="pwNewGroupBtn" style="margin-top:10px"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-plus"></use></svg>新建群聊</button>
       </div>
     </div>
   </div>
@@ -96,9 +97,9 @@
   <!-- 偷窥/接管：窥屏页 -->
   <div id="page-peek" class="page">
     <div class="hd chatbar">
-      <button class="icon-btn" id="peekBackBtn" aria-label="返回">‹</button>
+      <button class="icon-btn" id="peekBackBtn" aria-label="返回"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-back"></use></svg></button>
       <div class="peer"><span class="peer-ava" id="peekPeerAva"></span><span class="pc"><strong id="peekTitle">…</strong><small id="peekSub"></small></span></div>
-      <button class="icon-btn" id="peekMenuBtn" aria-label="更多">⋯</button>
+      <button class="icon-btn" id="peekMenuBtn" aria-label="更多"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-more"></use></svg></button>
     </div>
     <div class="pwbar" id="peekBar"></div>
     <div class="scroll chat-scroll" id="peekScroll"></div>
@@ -126,7 +127,7 @@
     <div class="ct">拉角色建群（你也是群成员）</div>
     <div class="cb">
       <div class="pwpick" id="pwPickGroup"></div>
-      <label class="optrow"><div><div class="l">👻 纯围观幽灵群（我不进群）</div><div class="d">勾选后该群只在窥屏入口出现，不进首页列表</div></div>
+      <label class="optrow"><div><div class="l"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-eye-link"></use></svg>纯围观幽灵群（我不进群）</div><div class="d">勾选后该群只在窥屏入口出现，不进首页列表</div></div>
         <label class="switch"><input type="checkbox" id="pwGhostChk"><span class="sl"></span></label></label>
       <div class="subt">故事板（可留空 = 无剧本，性格自由发展）</div>
       <textarea id="pwStoryGroup" class="compose-input" placeholder="这次群聊的剧情走向…留空即实验模式。"></textarea>
@@ -150,11 +151,11 @@
   <!-- 窥屏 ⋯ 弹层 -->
   <div class="mask" id="maskPwMenu"></div>
   <div class="sheet" id="sheetPwMenu">
-    <div class="si" id="pwmStory">📝 编辑故事板</div>
-    <div class="si" id="pwmRename">✏️ 修改群名</div>
-    <div class="si" id="pwmMembers">👥 群公告与成员</div>
-    <div class="si" id="pwmPause">⏸ 暂停 / 继续</div>
-    <div class="si red" id="pwmDelete">🗑 删除这个聊天</div>
+    <div class="si" id="pwmStory"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-memory"></use></svg>编辑故事板</div>
+    <div class="si" id="pwmRename"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-settings"></use></svg>修改群名</div>
+    <div class="si" id="pwmMembers"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-group"></use></svg>群公告与成员</div>
+    <div class="si" id="pwmPause"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-stop"></use></svg>暂停 / 继续</div>
+    <div class="si red" id="pwmDelete"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-stop"></use></svg>删除这个聊天</div>
     <div class="si cancel" id="pwmCancel">取消</div>
   </div>
 
@@ -170,7 +171,7 @@
       </div>
       <div class="subt">成员</div>
       <div class="memlist" id="pwMembersList"></div>
-      <button class="gbtn ghost" id="pwInviteBtn" style="border:1px solid rgba(141,232,211,.45);color:var(--mint);background:transparent">➕ 邀请新成员</button>
+      <button class="gbtn ghost" id="pwInviteBtn" style="border:1px solid rgba(141,232,211,.45);color:var(--mint);background:transparent"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-plus"></use></svg>邀请新成员</button>
       <button class="gbtn" id="pwMembersClose">完成</button>
     </div>
   </div>
@@ -201,18 +202,19 @@
   <!-- 聊天页 -->
   <div id="page-chat" class="page">
     <div class="hd chatbar">
-      <button class="icon-btn" id="chatBackBtn" aria-label="返回">‹</button>
+      <button class="icon-btn" id="chatBackBtn" aria-label="返回"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-back"></use></svg></button>
       <div class="peer"><span class="peer-ava" id="chatPeerAva"></span><span class="pc"><strong id="chatName">…</strong><small id="chatSub"></small></span></div>
-      <button class="icon-btn" id="chatMenuBtn" aria-label="更多">⋯</button>
+      <button class="icon-btn" id="chatMenuBtn" aria-label="更多"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-more"></use></svg></button>
     </div>
     <div class="scroll chat-scroll" id="chatScroll"></div>
-    <div class="quotebar" id="quoteBar"><span class="qt" id="quoteText"></span><span class="qx" id="quoteClose">✕</span></div>
+    <div class="quotebar" id="quoteBar"><span class="qt" id="quoteText"></span><span class="qx" id="quoteClose"><svg class="schat-icon ic-sm" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-stop"></use></svg></span></div>
     <!-- emoji 面板 -->
     <div class="emojibar" id="emojibar"></div>
     <div class="inbar">
-      <button class="icon-btn emoji-btn" id="emojiBtn" aria-label="表情">😊</button>
+      <button class="icon-btn emoji-btn" id="emojiBtn" aria-label="表情"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-emoji"></use></svg></button>
       <div class="hold"><textarea id="inp" rows="1" placeholder="写下消息……"></textarea></div>
-      <button class="plusbtn" id="sendBtn" aria-label="添加图片">⊕</button>
+      <button class="plusbtn" id="sendBtn" aria-label="添加图片"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-plus"></use></svg></button>
+      <button class="sendround" id="sendTextBtn" aria-label="发送"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-send"></use></svg></button>
     </div>
     <input type="file" id="chatFile" accept="image/*" style="display:none">
   </div>
@@ -220,7 +222,7 @@
   <!-- 设置页（= 我的；设置/提示/帮助入口都在这） -->
   <div id="page-set" class="page">
     <div class="hd">
-      <button class="icon-btn" id="setBackBtn" aria-label="返回">‹</button>
+      <button class="icon-btn" id="setBackBtn" aria-label="返回"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-back"></use></svg></button>
       <div class="ttl">设置</div>
       <div class="acts"></div>
     </div>
@@ -230,7 +232,7 @@
   <!-- 人设详情页 -->
   <div id="page-profile" class="page">
     <div class="hd">
-      <button class="icon-btn" id="profileBackBtn" aria-label="返回">‹</button>
+      <button class="icon-btn" id="profileBackBtn" aria-label="返回"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-back"></use></svg></button>
       <div class="ttl" id="profileName">…</div>
       <div class="acts"></div>
     </div>
@@ -240,7 +242,7 @@
   <!-- 帮助页 -->
   <div id="page-help" class="page">
     <div class="hd">
-      <button class="icon-btn" id="helpBackBtn" aria-label="返回">‹</button>
+      <button class="icon-btn" id="helpBackBtn" aria-label="返回"><svg class="schat-icon" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-back"></use></svg></button>
       <div class="ttl">帮助</div>
       <div class="acts"></div>
     </div>
@@ -250,26 +252,26 @@
   <!-- 气泡长按弹层 -->
   <div class="mask" id="maskSheet"></div>
   <div class="sheet" id="sheetMsg">
-    <div class="si" id="siQuote">↩ 引用回复</div>
-    <div class="si" id="siCopy">⧉ 复制</div>
+    <div class="si" id="siQuote"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-comment"></use></svg>引用回复</div>
+    <div class="si" id="siCopy"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-plus"></use></svg>复制</div>
     <div class="si cancel">取消</div>
   </div>
 
   <!-- 聊天 ⋯ 弹层 -->
   <div class="mask" id="maskChat"></div>
   <div class="sheet" id="sheetChat">
-    <div class="si" id="miProfile">📖 TA 的人设与记忆</div>
-    <div class="si" id="miClearChat">🗑 清空聊天记录</div>
-    <div class="si" id="miResetTime">⏱ 重置时间快进</div>
-    <div class="si red" id="miDelete">🚫 删除这个角色</div>
+    <div class="si" id="miProfile"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-memory"></use></svg>TA 的人设与记忆</div>
+    <div class="si" id="miClearChat"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-stop"></use></svg>清空聊天记录</div>
+    <div class="si" id="miResetTime"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-moments"></use></svg>重置时间快进</div>
+    <div class="si red" id="miDelete"><svg class="schat-icon ic-txt" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-stop"></use></svg>删除这个角色</div>
     <div class="si cancel">取消</div>
   </div>
 
   <!-- 列表长按弹层（置顶/取消置顶） -->
   <div class="mask" id="maskPin"></div>
   <div class="sheet" id="sheetPin">
-    <div class="si" id="siPin">📌 置顶聊天</div>
-    <div class="si" id="siUnpin">📌 取消置顶</div>
+    <div class="si" id="siPin"><svg class="schat-icon ic-up" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-chevron-right"></use></svg>置顶聊天</div>
+    <div class="si" id="siUnpin"><svg class="schat-icon ic-up" aria-hidden="true"><use href="./assets/schat-icons.svg#schat-chevron-right"></use></svg>取消置顶</div>
     <div class="si cancel" id="siPinCancel">取消</div>
   </div>
 
@@ -293,21 +295,21 @@
 </section>
 </main>
 
-<script src="./js/core/personas.js?v=73"></script>
-<script src="./js/core/util.js?v=73"></script>
-<script src="./js/core/store.js?v=73"></script>
-<script src="./js/core/timeparse.js?v=73"></script>
-<script src="./js/core/prompt.js?v=73"></script>
-<script src="./js/core/api.js?v=73"></script>
-<script src="./js/core/sync.js?v=73"></script>
-<script src="./js/core/photo_pools.js?v=73"></script>
-<script src="./js/core/photos.js?v=73"></script>
-<script src="./js/core/intim_corpus.js?v=73"></script>
-<script src="./js/core/charmem.js?v=73"></script>
-<script src="./js/core/engine.js?v=73"></script>
-<script src="./js/core/moments.js?v=73"></script>
-<script src="./js/core/privatewatch.js?v=74"></script>
-<script src="./js/ui/app.js?v=73"></script>
-<script src="./js/main.js?v=73"></script>
+<script src="./js/core/personas.js?v=75"></script>
+<script src="./js/core/util.js?v=75"></script>
+<script src="./js/core/store.js?v=75"></script>
+<script src="./js/core/timeparse.js?v=75"></script>
+<script src="./js/core/prompt.js?v=75"></script>
+<script src="./js/core/api.js?v=75"></script>
+<script src="./js/core/sync.js?v=75"></script>
+<script src="./js/core/photo_pools.js?v=75"></script>
+<script src="./js/core/photos.js?v=75"></script>
+<script src="./js/core/intim_corpus.js?v=75"></script>
+<script src="./js/core/charmem.js?v=75"></script>
+<script src="./js/core/engine.js?v=75"></script>
+<script src="./js/core/moments.js?v=75"></script>
+<script src="./js/core/privatewatch.js?v=75"></script>
+<script src="./js/ui/app.js?v=75"></script>
+<script src="./js/main.js?v=75"></script>
 </body>
 </html>
