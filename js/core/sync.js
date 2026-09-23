@@ -63,16 +63,22 @@
     });
   };
 
-  sync.list = function () {
+  /* list({all:true}) 返回全部（含 hidden 隐藏角色）；默认只返回可见角色。
+   * hidden 角色（如王忆可）：不出现在首页聊天列表、角色页网格、朋友圈，
+   * 只在建群/双人窥屏的选人面板和已建会话里可用。 */
+  sync.list = function (opts) {
+    let arr;
     if (sync._map) {
-      const arr = Object.keys(sync._map).map(function (k) { return sync._map[k]; });
+      arr = Object.keys(sync._map).map(function (k) { return sync._map[k]; });
       arr.sort(function (a, b) { return (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0); });
-      return arr;
+    } else {
+      arr = bundled().list;
     }
-    return bundled().list;
+    if (!(opts && opts.all)) arr = arr.filter(function (p) { return !p.hidden; });
+    return arr;
   };
   sync.get = function (id) {
-    const arr = sync.list();
+    const arr = sync.list({ all: true });
     for (const p of arr) if (p.id === id) return p;
     return null;
   };
